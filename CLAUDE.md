@@ -6,6 +6,8 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 GrayWolfe is a Microsoft Access application for managing selectors (names, emails, phones, IPs, addresses, etc.) stored in SharePoint. It provides search across two data sources (GrayWolfe local database and the "S" system), data import with automatic type detection, and target management.
 
+**Core problem:** Users collect thousands of selectors from disparate sources. GrayWolfe detects selector types, deduplicates them, and links related selectors into "targets" — connected groups representing a single entity. When new data arrives, it must merge into existing groups correctly (e.g., a new phone number linked to a known email should join that email's target, not create a new one). "Targets" here means selector groups, not military targets.
+
 **IMPORTANT**: This is a COPY of an Access database. The `.cls` and `.bas` files here are exported text — they have no connection to the actual Access runtime. Edit files here; the user will import and test in Access.
 
 ## No Build/Test Commands
@@ -106,3 +108,17 @@ SQL operations use `db.Execute strSQL, dbFailOnError`. Cleanup operations use `O
 - **ID generation:** Timestamp-based format `YYMMDDHHNNSSMMM` via `DefineUniqueId()`
 - **Config arrays:** All defined in `mod4b_DefineThings.bas` (selector types, states, street suffixes, delimiters, form defaults, table/column mappings)
 - **Mapping functions** in `mod4b_DefineThings.bas` use `Scripting.Dictionary`: `TableMap()`, `ColumnSearchMap()`, `ColumnAddMap()`, `DetectFunctionMap()`, `TargetFormDisplayMap()`, `StateMap()`
+
+## What Works Well
+
+Duplicate detection via `selectorClean` (normalized form stored alongside display form), regex-based type detection, and the data model (selectors → targets with nork metadata) are solid foundations. The cleaning/detection pipeline in mod3a/mod3b is reliable and extensible.
+
+## Known Architectural Gaps
+
+These are confirmed issues, not speculative. Future changes should account for them rather than working around them unknowingly.
+
+- **Target bridging bug**: `AddRelatedRowTargets()` in `mod1b_RunAddData.bas` silently overwrites when an imported row spans multiple existing targets (e.g., row has email A belonging to target 1 and phone B belonging to target 2). Error 1963 is commented out. The correct behavior — merging the two targets — is not implemented.
+- **Merge targets not implemented**: `Form_frmMergeTargets` is a stub. There is no way to combine two targets in the UI or code.
+- **Duplicate selectors skipped without target reconciliation**: `FillLocalSelectors()` returns early when a selector already exists locally, without checking whether the existing selector's target matches the incoming row's target. This can leave target membership inconsistent.
+- **Search doesn't expand to target group**: `SearchGrayWolfe()` returns exact selector matches only. It does not return sibling selectors belonging to the same target, so the user must manually navigate to the target to see the full picture.
+- **No import transaction safety**: Import operations (`RunAddSchemaData`, `FillLocalSelectors`, etc.) are not wrapped in transactions. A mid-import failure (network error, SharePoint timeout) can leave partial data in local tables without corresponding SharePoint records.

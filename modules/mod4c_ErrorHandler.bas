@@ -60,13 +60,13 @@ Function ThrowError(errCode As Long, errMsg As String) As String
     Case 1958
         errorStr = "Problem when building map object." & vbLf & vbLf & _
         "This is a coding error. The details are boring and unimportant." & vbLf & vbLf & _
-        "Please tell Remedio about this, he will beat the developer and fix it immediately (inshaAllah)."
+        "Please tell R about this, he will beat the developer and fix it immediately (inshaAllah)."
         
     'character parsing error (CharIsNumber / CharIsLetter)
     Case 1959
         errorStr = "Problem when parsing characters." & vbLf & vbLf & _
         "This is a coding error. The details are boring and unimportant." & vbLf & vbLf & _
-        "Please tell Remedio about this, he will beat the developer and fix it immediately (inshaAllah)."
+        "Please tell R about this, he will beat the developer and fix it immediately (inshaAllah)."
         
     'cant detect type
     Case 1960
@@ -78,24 +78,24 @@ Function ThrowError(errCode As Long, errMsg As String) As String
     Case 1961
         errorStr = "Problem searching GrayWolfe" & vbLf & vbLf & _
         "This is a coding error. The details are boring and unimportant." & vbLf & vbLf & _
-        "Please tell Remedio about this, he will beat the developer and fix it immediately (inshaAllah)."
+        "Please tell R about this, he will beat the developer and fix it immediately (inshaAllah)."
         
     'sharepoint data add problem
     Case 1962
         errorStr = "Problem adding data to GrayWolfe" & vbLf & vbLf & _
         "This is a coding error. The details are boring and unimportant." & vbLf & vbLf & _
-        "Please tell Remedio about this, he will beat the developer and fix it immediately (inshaAllah)."
+        "Please tell R about this, he will beat the developer and fix it immediately (inshaAllah)."
         
     'different target names
     Case 1963
         errorStr = "That name is DIFFERENT from what's already in GrayWolfe for those selectors." & vbLf & vbLf & _
-        "Tell Remedio to stop sucking and FINISH building a way to deal with this."
+        "Tell R to stop sucking and FINISH building a way to deal with this."
         
     'local tables
     Case 1964
         errorStr = "Problem with local tables." & vbLf & vbLf & _
         "This is a coding error. The details are boring and unimportant." & vbLf & vbLf & _
-        "Please tell Remedio about this, he will beat the developer and fix it immediately (inshaAllah)."
+        "Please tell R about this, he will beat the developer and fix it immediately (inshaAllah)."
     
     'delim str
     Case 1965
@@ -113,7 +113,7 @@ Function ThrowError(errCode As Long, errMsg As String) As String
     Case 1967
         errorStr = "Your S Token doesn't look right (it's in the wrong format)." & vbLf & vbLf & _
         "Either you pasted it wrong, or (more likely) the tool messed it up." & vbLf & vbLf & _
-        "If the latter is more likely please tell Remedio. He will beat the developer and make him fix it immediately (inshaAllah)."
+        "If the latter is more likely please tell R. He will beat the developer and make him fix it immediately (inshaAllah)."
         
     'token fucked (S api not working)
     Case 1968
@@ -124,17 +124,17 @@ Function ThrowError(errCode As Long, errMsg As String) As String
     'S search fucked
     Case 1969
         errorStr = "Something is wrong with the S search. Prob a coding problem." & vbLf & vbLf & _
-        "Please tell Remedio, he will beat the developer and fix it immediately (inshaAllah)."
+        "Please tell R, he will beat the developer and fix it immediately (inshaAllah)."
     
     'S search empty
     Case 1970
         errorStr = "S's API failed to return data, no clue what the problem is" & vbLf & vbLf & _
-        "Please tell Remedio about this, he will beat the developer, and fix it immediately (inshaAllah)"
+        "Please tell R about this, he will beat the developer, and fix it immediately (inshaAllah)"
     
     'open args wrong
     Case 1971
         errorStr = "There was a problem loading data into the results form. This is a coding error (apologies)." & vbLf & vbLf & _
-        "Please tell Remedio about this, he will beat the developer, and fix it immediately (inshaAllah)"
+        "Please tell R about this, he will beat the developer, and fix it immediately (inshaAllah)"
 
     'user cancel
     Case 1998

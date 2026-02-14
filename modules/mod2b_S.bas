@@ -155,7 +155,7 @@ Sub ExportJsonToFile(str As String, fileName As String)
     Dim chunkSize As Long, i As Long
     
     'SET OUTPUT PATH
-    outputPath = "C:\Users\RREMEDIO\OneDrive - F\All\TOOLS\GrayWolfe\" & fileName
+    outputPath = "C:\Users\RR\OneDrive - F\All\TOOLS\GrayWolfe\" & fileName
 
     Set fso = CreateObject("Scripting.FileSystemObject")
     
