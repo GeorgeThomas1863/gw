@@ -1,106 +1,108 @@
-# Access VBA SharePoint Database Project
+# CLAUDE.md
+
+This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
 ## Project Overview
 
-This is a COPY of a Microsoft Access application that provides a user interface for managing data stored in SharePoint. The application uses VBA forms to accept user input, search/query data, and manipulate records stored in specific SharePoint lists.
+GrayWolfe is a Microsoft Access application for managing selectors (names, emails, phones, IPs, addresses, etc.) stored in SharePoint. It provides search across two data sources (GrayWolfe local database and the "S" system), data import with automatic type detection, and target management.
 
-## Project Structure
+**IMPORTANT**: This is a COPY of an Access database. The `.cls` and `.bas` files here are exported text — they have no connection to the actual Access runtime. Edit files here; the user will import and test in Access.
+
+## No Build/Test Commands
+
+There are no build, lint, or test commands. VBA code runs only inside the Access database. The user handles all importing and testing.
+
+## Architecture
+
+### Module Numbering Convention
+
+Modules are numbered by layer:
+
+| Prefix | Layer | Files |
+|--------|-------|-------|
+| `mod1*` | **Workflow orchestration** | `mod1a_RunSearch.bas`, `mod1b_RunAddData.bas` |
+| `mod2*` | **Data access** | `mod2a_Sharepoint_Tables.bas`, `mod2b_S.bas` |
+| `mod3*` | **Data processing** | `mod3a_CleanFix.bas`, `mod3b_DetectCheck.bas` |
+| `mod4*` | **Infrastructure** | `mod4a_APICalls.bas`, `mod4b_DefineThings.bas`, `mod4c_ErrorHandler.bas`, `mod4d_JsonParser.bas` |
+| `mod5*` | **Utilities** | `mod5_UTIL_Delete.bas` |
+
+### Form Hierarchy
+
+- **`Form_frmMainMenu`** — Entry point. Two tabs: Search and Add Data.
+- **`Form_frmResultsDisplay`** — Results viewer with S/GW tabs and dynamic filters.
+  - `Form_frmResults_SSubform` — S results subform
+  - `Form_frmResults_GWSubform` — GW results subform
+- **`Form_frmSchemaDetection`** — Column type confirmation during default import.
+- **`Form_frmTargetDetails`** — Target editor (metadata + selectors).
+  - `Form_frmTargetDetails_Subform` — Target selectors subform
+- **`Form_frmMergeTargets`** — Stub (not implemented).
+
+### Data Flow
 
 ```
-/forms/          - Form class modules (.cls files) - UI and event handlers
-/modules/        - Standard VBA modules (.bas files) - Business logic and utilities
+User Input → Cleaning (mod3a) → Detection (mod3b) → Validation → Local Tables → SharePoint Sync (mod2a)
 ```
 
-## Key Components
+Internally, all delimiters are normalized to `"!!"` for processing, then reconverted for display. All selector types are lowercased internally, proper-cased for display.
 
-### Forms (`/forms/*.cls`)
+### Key Workflows
 
-Form class modules handle user interface and events. Each form typically contains:
+**Search:** `frmMainMenu.btnSearch_Click()` → `RunSearch()` (mod1a) → `SearchGrayWolfe()` + `SearchS()` → fills temp tables → opens `frmResultsDisplay`
 
-- Event handlers (button clicks, form load/unload, etc.)
-- Input validation logic
-- Calls to business logic in standard modules
-- UI state management
+**Default Import:** `frmMainMenu.btnAdd_Click()` → `RunDefaultImport()` (mod1b) → auto-detects column types → `FillTempSchema()` → opens `frmSchemaDetection` → user confirms → `RunAddSchemaData()` → creates selectors + targets → syncs to SharePoint
 
-### Modules (`/modules/*.bas`)
+**Unrelated Import:** `RunUnrelatedImport()` (mod1b) → direct type detection, skips relationship creation
 
-Standard modules contain reusable code:
+**Target Edit:** `frmTargetDetails.Form_Current()` → loads target data → user edits → `UpdateTargetSelectors()` / `UpdateTargetStatsForm()` → syncs to SharePoint
 
-- SharePoint connection and data access functions
-- Data validation and transformation logic
-- Utility functions used across multiple forms
-- Constants and configuration
+## Database Tables
 
-## Technology Stack
+| Table | Purpose |
+|-------|---------|
+| `localNorks`, `localSelectors`, `localTargets` | Local mirrors of SharePoint lists |
+| `tempSchema` | Staging for schema detection during import |
+| `tempGWSearchResults`, `tempSSearchResults` | Staging for search results |
 
-- **VBA (Visual Basic for Applications)** - Primary language
-- **Microsoft Access** - Host application and local UI
-- **SharePoint** - Backend data storage (lists/libraries)
-- Likely uses SharePoint REST API or SOAP services for data operations
+SharePoint lists: **Norks**, **Selectors**, **Targets**
 
-## Development Workflow
+## Naming Conventions
 
-**IMPORTANT**: THIS IS A COPY OF A SEPARATE Access database file. Changes made here to `.cls` and `.bas` files must be imported back into the Access database file (.accdb) to take effect. The user manually created a copy of this project so you can see it here, but the actual runtime is the Access database. The files here have NO connection to / integration with the actual Access database and will be imported back to the Access database by the user at a later time.
+### Functions
 
-### Making Changes
+- `RunX()` — Workflow entry points
+- `SearchX()` — Search operations
+- `FillX()` — Insert/populate data
+- `UpdateX()` — Modify existing data
+- `CheckX()` — Validation (returns Boolean)
+- `FixX()` — Data cleaning/normalization
+- `DetectX()` — Type/pattern detection
+- `ClearX()` — Delete/reset operations
+- `BuildX()` — Construct strings/data
+- `DefineX()` — Return config arrays/constants
 
-1. Edit `.cls` or `.bas` files in this IDE
-2. The user will import and test all changes in the actual Access runtime environment.
+### Variables
 
-## Common Tasks
+- `Str` suffix for strings: `inputStr`, `filterStr`
+- `Arr` suffix for arrays: `searchArr`, `stateArr`
+- `Rs` for recordsets: `rs`, `rsSearch`
 
-### SharePoint Integration Patterns
+## Selector Types
 
-Look for these common patterns in the code:
+11 types in detection priority order: `email`, `phone`, `ip`, `address`, `linkedin`, `github`, `telegram`, `discord`, `name`, `other`, `row`
 
-- HTTP requests to SharePoint REST endpoints
-- XML/JSON parsing for SharePoint responses
-- Authentication (could be Windows Auth, OAuth, or SharePoint App credentials)
-- CRUD operations (Create, Read, Update, Delete) on SharePoint lists
+Type detection uses `VBScript.RegExp` and lives in `mod3b_DetectCheck.bas`. Each type has a `CheckX()` validator and a `FixXStr()` cleaner in `mod3a_CleanFix.bas`.
 
-### Code Review & Refactoring
+## Error Handling
 
-When reviewing or refactoring:
+Custom error system in `mod4c_ErrorHandler.bas` using `ThrowError(errCode, errMsg)`. Error codes 1950-1971 cover specific scenarios (1950=empty search input, 1966=missing S API token, 1968=S auth failed, 1998=user cancellation). See the file for the full list.
 
-- Check for error handling (`On Error GoTo` patterns)
-- Verify proper resource cleanup (closing connections, clearing objects)
-- Ensure consistent naming conventions across forms and modules
+SQL operations use `db.Execute strSQL, dbFailOnError`. Cleanup operations use `On Error Resume Next`.
 
-## Things to Know
+## Key Technical Details
 
-### VBA Limitations
-
-- No native JSON parsing (uses custom json parser)
-- Limited async capabilities - most operations are synchronous
-- String manipulation can be verbose
-- COM object management requires explicit cleanup
-
-### Access-Specific Considerations
-
-- Forms have a lifecycle (Load, Current, Unload events)
-- RecordSource property may bind forms to local tables/queries
-- DoCmd object used for Access-specific actions (navigation, etc.)
-- References may include: Microsoft ActiveX Data Objects, XML libraries, etc.
-
-### Testing
-
-Changes must be tested in the actual Access application. The text files alone won't run - they need to be in an Access database context. The user will handle all testing.
-
-## File Naming Conventions
-
-- Form files: Typically named `Form_[FormName].cls` or `[FormName].cls`
-- Module files: Descriptive names like `SharePointUtils.bas`, `DataValidation.bas`, etc.
-
-## Getting Started
-
-To understand this codebase:
-
-1. Start with form modules to understand the user workflows
-2. Trace button click events to see what business logic they call
-3. Review modules to understand SharePoint integration patterns
-4. Look for a main/entry point or startup form
-5. Check for configuration constants (URLs, list names, etc.)
-
----
-
-**Note to Claude Code**: This is a VBA project exported as text files. While you can edit these files directly, remember that the person will need to import your changes back into their Access database for testing. When suggesting changes, consider the VBA language constraints and Access runtime environment.
+- **HTTP:** WinINet API (`mod4a_APICalls.bas`) for S API calls; MSXML2 for simpler requests
+- **JSON:** Borrowed VBA-JSON library in `mod4d_JsonParser.bas` (~42KB, do not modify)
+- **S API rate limiting:** 500-item batches with 10-second pauses between calls
+- **ID generation:** Timestamp-based format `YYMMDDHHNNSSMMM` via `DefineUniqueId()`
+- **Config arrays:** All defined in `mod4b_DefineThings.bas` (selector types, states, street suffixes, delimiters, form defaults, table/column mappings)
+- **Mapping functions** in `mod4b_DefineThings.bas` use `Scripting.Dictionary`: `TableMap()`, `ColumnSearchMap()`, `ColumnAddMap()`, `DetectFunctionMap()`, `TargetFormDisplayMap()`, `StateMap()`
