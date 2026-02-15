@@ -49,58 +49,49 @@ End Sub
 
 
 Function SearchGrayWolfe(str As String) As String
-    Dim rs As DAO.Recordset, searchArr() As String
+    Dim db As DAO.Database, rs As DAO.Recordset, rsCount As DAO.Recordset
+    Dim searchArr() As String
     Dim splitStr As String, searchStr As String, selectorCleanStr As String
-    Dim targetStr As String, targetItem As String, openArgsStr As String, recordCount As Long
-    Dim i As Long, x As Long, y As Long, t As Long
-    
+    Dim strSQL As String, recordCount As Long
+    Dim i As Long, x As Long, t As Long
+
     'replace all delims
     splitStr = Replace(Trim(str), "+++", "!!")
     searchArr = Split(splitStr, "!!")
-    
+
     'shouldnt happen
     If UBound(searchArr) = -1 Then ThrowError 1961, str: Exit Function
-    
-    'targetStr = "" 'track uniques
-    't = 0 'target hits
-    'y = 0 'searched count (non null)
+
+    Set db = CurrentDb
+
     x = 0 'gw hit counter
     For i = LBound(searchArr) To UBound(searchArr)
         searchStr = Trim(searchArr(i))
-        
+
         If searchStr <> "" And LCase(searchStr) <> "null" Then
-            'Debug.Print "SEARCH STR: " & searchStr
-            
             selectorCleanStr = BuildSelectorClean(searchStr)
-    
+
             Set rs = SearchSelectorTbl(searchStr, selectorCleanStr)
             If Not rs.EOF Then
                 rs.MoveFirst
                 rs.MoveLast
                 recordCount = rs.recordCount
-                'Debug.Print "RECORD COUNT: " & recordCount
-                
+
                 x = x + recordCount
             End If
-            
+
             FillTempGWSearchResults rs, searchStr, selectorCleanStr
-            
-            'target hits
-            'targetItem = SearchTargetItemGWTbl(searchStr)
-            targetItem = SearchSelectorForTargetIdTbl(selectorCleanStr)
-            If targetItem <> "" And InStr(LCase(targetItem), "[name not known") = 0 And InStr(LCase(targetStr), LCase(targetItem) & "!!") = 0 Then
-                'targetStr = targetStr & targetItem & "!!" 'count only uniques
-                t = t + 1
-            End If
-        
-            y = y + 1
         End If
     Next
-    
-    'If Trim(targetStr) <> "" Then targetStr = Trim(Left(targetStr, Len(targetStr) - 2))
-    
+
+    'count distinct targets from search results (handles shared selectors across multiple targets)
+    t = 0
+    strSQL = "SELECT COUNT(*) AS cnt FROM (SELECT DISTINCT targetId FROM [tempGWSearchResults] WHERE [targetId] IS NOT NULL AND [targetId] <> '') AS subQ"
+    Set rsCount = db.OpenRecordset(strSQL, dbOpenSnapshot)
+    If Not rsCount.EOF Then t = Nz(rsCount!cnt, 0)
+    rsCount.Close
+
     'target hits !! selector hits
-    'SearchGrayWolfe = Trim(t & "!!" & x & "$$" & targetStr)
     SearchGrayWolfe = Trim(t & "!!" & x)
 End Function
 

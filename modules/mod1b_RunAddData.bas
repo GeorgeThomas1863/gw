@@ -238,48 +238,45 @@ End Function
 
 'inputStr is user input, addSelectorStr is new selectors
 Function AddRelatedRowTargets(inputStr As String, typeStr As String, addSelectorsStr As String) As String
-    Dim inputArr() As String, typeArr() As String
-    Dim inputItem As String, targetIdStr As String, targetIdItem As String, nameStr As String, selectorCleanStr As String
+    Dim inputArr() As String, targetArr() As String
+    Dim targetIdsStr As String, targetIdStr As String
+    Dim mergeResult As Boolean
     Dim i As Long
-        
+
     inputArr = Split(inputStr, "!!")
-    typeArr = Split(typeStr, "!!")
-    
+
     'single entries
     If UBound(inputArr) < 1 Then Exit Function
-    
-    'check if any have inputs have targetId already
-    targetIdStr = ""
-    For i = LBound(inputArr) To UBound(inputArr)
-        inputItem = Trim(inputArr(i))
-        
-        If inputItem <> "" Then
-            selectorCleanStr = BuildSelectorClean(inputItem)
-            targetIdItem = SearchSelectorForTargetIdTbl(selectorCleanStr)
-            
-            If targetIdItem <> "" Then
-                
-                'multiple target ids figure out later
-                'If targetIdStr <> "" And targetIdStr <> targetIdItem Then ThrowError 1963, "DIFFERENT TARGET IDS FOR " & inputItem: Exit Function
-                
-                'otherwise set to targetId
-                targetIdStr = targetIdItem
-            End If
-        End If
-    Next
-    
-    'Debug.Print "TARGET ID STR: " & targetIdStr
-    
-    'new target
-    If targetIdStr = "" Then
+
+    'collect ALL existing targetIds for selectors in this row
+    targetIdsStr = CollectTargetIdsForRow(inputStr)
+
+    If targetIdsStr = "" Then
+        '0 targets found - create new
         targetIdStr = FillLocalTargets()
-    
-    'NOT UPDATING TARGET NAME BC WANT USER TO MANUALLY SET
+
+    Else
+        targetArr = Split(targetIdsStr, "!!")
+
+        If UBound(targetArr) = 0 Then
+            '1 target found - use it
+            targetIdStr = Trim(targetArr(0))
+
+        Else
+            '2+ targets found - merge them all into the first one
+            targetIdStr = Trim(targetArr(0))
+            For i = 1 To UBound(targetArr)
+                mergeResult = MergeTargets(targetIdStr, Trim(targetArr(i)))
+                If Not mergeResult Then
+                    Debug.Print "MERGE FAILED: keep=" & targetIdStr & " absorb=" & Trim(targetArr(i))
+                End If
+            Next
+        End If
     End If
-    
+
     UpdateSelectorsTblTargetId inputStr, targetIdStr
     UpdateGWSearchTargetId inputStr, targetIdStr
-    
+
     AddRelatedRowTargets = targetIdStr
 End Function
 

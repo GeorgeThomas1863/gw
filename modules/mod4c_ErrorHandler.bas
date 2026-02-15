@@ -136,6 +136,11 @@ Function ThrowError(errCode As Long, errMsg As String) As String
         errorStr = "There was a problem loading data into the results form. This is a coding error (apologies)." & vbLf & vbLf & _
         "Please tell R about this, he will beat the developer, and fix it immediately (inshaAllah)"
 
+    'merge targets failed
+    Case 1972
+        errorStr = "Problem merging targets. One or both target IDs could not be found." & vbLf & vbLf & _
+        "Please check the target IDs and try again."
+
     'user cancel
     Case 1998
         GoTo Kill

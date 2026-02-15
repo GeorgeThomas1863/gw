@@ -312,10 +312,16 @@ Function FillLocalSelectors(str As String, selectorType As String, Optional targ
     Set db = CurrentDb
     
     'check if already in SP
-    strSQL = "SELECT * FROM [localSelectors] WHERE [selectorClean] = '" & selectorCleanStr & "'"
-    
+    'when targetId provided (manual add), only block if exact selector+target combo exists
+    'when targetId empty (import flow), block any duplicate selector value
+    If Trim(targetId) <> "" And Trim(UCase(targetId)) <> "NULL" Then
+        strSQL = "SELECT * FROM [localSelectors] WHERE [selectorClean] = '" & selectorCleanStr & "' AND [targetId] = '" & Trim(targetId) & "'"
+    Else
+        strSQL = "SELECT * FROM [localSelectors] WHERE [selectorClean] = '" & selectorCleanStr & "'"
+    End If
+
     Set rsSearch = db.OpenRecordset(strSQL, dbOpenSnapshot)
-    
+
     'record set has records (already in selectors list)
     If Not (rsSearch.EOF And rsSearch.BOF) Then FillLocalSelectors = "SELECTOR ALREADY KNOWN | ID: " & _
     Nz(rsSearch!selectorId, "NULL"): rsSearch.Close: Exit Function
@@ -839,24 +845,12 @@ Sub UpdateSelectorsTblTargetId(str As String, targetId As String)
     For i = LBound(inputArr) To UBound(inputArr)
         selectorStr = Trim(inputArr(i))
         
-        strSQL = "SELECT * FROM [localSelectors] WHERE [selector] = '" & selectorStr & "'"
-        
-        Set rs = db.OpenRecordset(strSQL, dbOpenSnapshot)
-        If Not rs.EOF Then
-            
-            currentTargetId = Nz(rs!targetId, "")
-            If currentTargetId <> targetIdStr Then
-            
-                'check if targetId WRONG / Diff
-                'If currentTargetId <> "" And UCase(currentTargetId) <> "NULL" Then ThrowError 1963, "DIFFERENT TARGET ID; SELECTOR: " & selectorStr: Exit Sub
-                
-                'otherwise update it
-                strSQL = "UPDATE [localSelectors] SET [targetId] = '" & targetIdStr & "' WHERE [selector] = '" & selectorStr & "'"
-                db.Execute strSQL
-            End If
-        End If
+        'only update selectors that have no target assigned (preserve shared selectors)
+        strSQL = "UPDATE [localSelectors] SET [targetId] = '" & targetIdStr & "' WHERE [selector] = '" & selectorStr & "' " & _
+        "AND ([targetId] IS NULL OR [targetId] = '')"
+        db.Execute strSQL
     Next
-                    
+
 End Sub
 
 Sub UpdateGWSearchTargetId(str As String, targetId As String)
@@ -875,32 +869,20 @@ Sub UpdateGWSearchTargetId(str As String, targetId As String)
     For i = LBound(inputArr) To UBound(inputArr)
         selectorStr = Trim(inputArr(i))
         
-        strSQL = "SELECT * FROM [tempGWSearchResults] WHERE [selector] = '" & selectorStr & "'"
-        
-        Set rs = db.OpenRecordset(strSQL, dbOpenSnapshot)
-        If Not rs.EOF Then
-            
-            currentTargetId = Nz(rs!targetId, "")
-            If currentTargetId <> targetIdStr Then
-            
-                'check if targetId WRONG / Diff
-                'If currentTargetId <> "" And UCase(currentTargetId) <> "NULL" Then ThrowError 1963, "DIFFERENT TARGET ID; SELECTOR: " & selectorStr: Exit Sub
-                
-                strSQL = "SELECT * FROM [localTargets] WHERE [targetId] = '" & targetIdStr & "'"
-                Set rsTarget = db.OpenRecordset(strSQL, dbOpenSnapshot)
-                targetNameStr = Nz(rsTarget!targetName, "")
-'                Debug.Print "^^^^^^"
-'                Debug.Print "TARGET NAME STR: " & targetNameStr
-'                Debug.Print "^^^^^^"
-'
-                'otherwise update it
-                strSQL = "UPDATE [tempGWSearchResults] SET [targetId] = '" & targetIdStr & "', " & _
-                "[targetName] = '" & targetNameStr & "' WHERE [selector] = '" & selectorStr & "'"
-
-                
-                db.Execute strSQL
-            End If
+        'get target name for display
+        strSQL = "SELECT * FROM [localTargets] WHERE [targetId] = '" & targetIdStr & "'"
+        Set rsTarget = db.OpenRecordset(strSQL, dbOpenSnapshot)
+        If Not rsTarget.EOF Then
+            targetNameStr = Nz(rsTarget!targetName, "")
+        Else
+            targetNameStr = ""
         End If
+
+        'only update search results that have no target assigned (preserve shared selectors)
+        strSQL = "UPDATE [tempGWSearchResults] SET [targetId] = '" & targetIdStr & "', " & _
+        "[targetName] = '" & targetNameStr & "' WHERE [selector] = '" & selectorStr & "' " & _
+        "AND ([targetId] IS NULL OR [targetId] = '')"
+        db.Execute strSQL
     Next
 
 End Sub
@@ -1089,6 +1071,128 @@ Sub RequeryTargetForm()
 End Sub
 
 
+
+'++++++++++++++++++++++++++++++++++++++++++++
+
+'MERGE / BRIDGING SECTION
+
+Function MergeTargets(keepTargetId As String, absorbTargetId As String) As Boolean
+    Dim db As DAO.Database, rsKeep As DAO.Recordset, rsAbsorb As DAO.Recordset
+    Dim strSQL As String, keepStr As String, absorbStr As String
+    Dim keepName As String, absorbName As String, keepCase As String, absorbCase As String
+    Dim keepLaptops As Long, absorbLaptops As Long
+
+    keepStr = Trim(keepTargetId)
+    absorbStr = Trim(absorbTargetId)
+
+    If keepStr = "" Or absorbStr = "" Or keepStr = absorbStr Then
+        MergeTargets = False
+        Exit Function
+    End If
+
+    Set db = CurrentDb
+
+    'validate both exist
+    strSQL = "SELECT * FROM [localTargets] WHERE [targetId] = '" & keepStr & "'"
+    Set rsKeep = db.OpenRecordset(strSQL, dbOpenSnapshot)
+    If rsKeep.EOF Then MergeTargets = False: rsKeep.Close: Exit Function
+
+    strSQL = "SELECT * FROM [localTargets] WHERE [targetId] = '" & absorbStr & "'"
+    Set rsAbsorb = db.OpenRecordset(strSQL, dbOpenSnapshot)
+    If rsAbsorb.EOF Then MergeTargets = False: rsKeep.Close: rsAbsorb.Close: Exit Function
+
+    'move all selectors from absorbed to kept
+    strSQL = "UPDATE [localSelectors] SET [targetId] = '" & keepStr & "' WHERE [targetId] = '" & absorbStr & "'"
+    db.Execute strSQL, dbFailOnError
+
+    'remove duplicate selectors that existed in both targets
+    strSQL = "DELETE FROM [localSelectors] WHERE [ID] NOT IN (" & _
+        "SELECT MIN([ID]) FROM [localSelectors] WHERE [targetId] = '" & keepStr & "' GROUP BY [selectorClean]" & _
+    ") AND [targetId] = '" & keepStr & "'"
+    db.Execute strSQL
+
+    'copy metadata from absorbed if kept lacks it
+    keepName = Nz(rsKeep!targetName, "")
+    absorbName = Nz(rsAbsorb!targetName, "")
+    If (keepName = "" Or InStr(LCase(keepName), "[real name not set") > 0) And absorbName <> "" And InStr(LCase(absorbName), "[real name not set") = 0 Then
+        strSQL = "UPDATE [localTargets] SET [targetName] = '" & Replace(absorbName, "'", "''") & "' WHERE [targetId] = '" & keepStr & "'"
+        db.Execute strSQL
+    End If
+
+    keepCase = Nz(rsKeep!caseNumber, "")
+    absorbCase = Nz(rsAbsorb!caseNumber, "")
+    If keepCase = "" And absorbCase <> "" Then
+        strSQL = "UPDATE [localTargets] SET [caseNumber] = '" & Replace(absorbCase, "'", "''") & "' WHERE [targetId] = '" & keepStr & "'"
+        db.Execute strSQL
+    End If
+
+    'sum laptop counts
+    keepLaptops = Val(Nz(rsKeep!laptopCount, 0))
+    absorbLaptops = Val(Nz(rsAbsorb!laptopCount, 0))
+    If absorbLaptops > 0 Then
+        strSQL = "UPDATE [localTargets] SET [laptopCount] = " & (keepLaptops + absorbLaptops) & " WHERE [targetId] = '" & keepStr & "'"
+        db.Execute strSQL
+    End If
+
+    rsKeep.Close
+    rsAbsorb.Close
+
+    'recalc selector count
+    UpdateTargetsSelectorCountTbl keepStr
+
+    'delete absorbed target
+    strSQL = "DELETE FROM [localTargets] WHERE [targetId] = '" & absorbStr & "'"
+    db.Execute strSQL, dbFailOnError
+
+    'update last updated
+    UpdateLastUpdated keepStr, "localTargets"
+
+    MergeTargets = True
+End Function
+
+Function CollectTargetIdsForRow(inputStr As String) As String
+    Dim db As DAO.Database, rs As DAO.Recordset
+    Dim inputArr() As String, strSQL As String, selectorCleanStr As String
+    Dim dict As Object, targetIdItem As String
+    Dim returnStr As String
+    Dim i As Long
+
+    Set dict = CreateObject("Scripting.Dictionary")
+    Set db = CurrentDb
+
+    inputArr = Split(Trim(inputStr), "!!")
+    If UBound(inputArr) = -1 Then CollectTargetIdsForRow = "": Exit Function
+
+    For i = LBound(inputArr) To UBound(inputArr)
+        If Trim(inputArr(i)) <> "" And LCase(Trim(inputArr(i))) <> "null" Then
+            selectorCleanStr = BuildSelectorClean(Trim(inputArr(i)))
+
+            strSQL = "SELECT DISTINCT targetId FROM [localSelectors] WHERE [selectorClean] = '" & selectorCleanStr & "' AND [targetId] IS NOT NULL AND [targetId] <> ''"
+            Set rs = db.OpenRecordset(strSQL, dbOpenSnapshot)
+
+            Do While Not rs.EOF
+                targetIdItem = Nz(rs!targetId, "")
+                If targetIdItem <> "" And Not dict.Exists(targetIdItem) Then
+                    dict.Add targetIdItem, True
+                End If
+                rs.MoveNext
+            Loop
+            rs.Close
+        End If
+    Next
+
+    'build return string
+    If dict.Count = 0 Then CollectTargetIdsForRow = "": Exit Function
+
+    returnStr = ""
+    Dim key As Variant
+    For Each key In dict.Keys
+        returnStr = returnStr & key & "!!"
+    Next
+
+    'remove trailing delim
+    CollectTargetIdsForRow = Trim(Left(returnStr, Len(returnStr) - 2))
+End Function
 
 '+++++++++++++++++++++++++++++++++++++++++++
 

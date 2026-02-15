@@ -37,7 +37,7 @@ Modules are numbered by layer:
 - **`Form_frmSchemaDetection`** — Column type confirmation during default import.
 - **`Form_frmTargetDetails`** — Target editor (metadata + selectors).
   - `Form_frmTargetDetails_Subform` — Target selectors subform
-- **`Form_frmMergeTargets`** — Stub (not implemented).
+- **`Form_frmMergeTargets`** — Merge two targets (keep one, absorb the other). Opened from Target Details with pre-filled targetId.
 
 ### Data Flow
 
@@ -96,7 +96,7 @@ Type detection uses `VBScript.RegExp` and lives in `mod3b_DetectCheck.bas`. Each
 
 ## Error Handling
 
-Custom error system in `mod4c_ErrorHandler.bas` using `ThrowError(errCode, errMsg)`. Error codes 1950-1971 cover specific scenarios (1950=empty search input, 1966=missing S API token, 1968=S auth failed, 1998=user cancellation). See the file for the full list.
+Custom error system in `mod4c_ErrorHandler.bas` using `ThrowError(errCode, errMsg)`. Error codes 1950-1972 cover specific scenarios (1950=empty search input, 1966=missing S API token, 1968=S auth failed, 1972=merge targets failed, 1998=user cancellation). See the file for the full list.
 
 SQL operations use `db.Execute strSQL, dbFailOnError`. Cleanup operations use `On Error Resume Next`.
 
@@ -113,12 +113,19 @@ SQL operations use `db.Execute strSQL, dbFailOnError`. Cleanup operations use `O
 
 Duplicate detection via `selectorClean` (normalized form stored alongside display form), regex-based type detection, and the data model (selectors → targets with nork metadata) are solid foundations. The cleaning/detection pipeline in mod3a/mod3b is reliable and extensible.
 
+## Target Bridging & Shared Selectors
+
+Key design decisions for how targets and selectors interact:
+
+- **Import default = join existing target**: When imported selectors match an existing target, they join it (assume same entity).
+- **Bridging merges targets**: When an imported row's selectors span 2+ existing targets, `AddRelatedRowTargets()` calls `MergeTargets()` to combine them into one. `CollectTargetIdsForRow()` gathers all matching targetIds first.
+- **Shared selectors allowed**: The same selector value can belong to multiple targets (e.g., shared office phone). `FillLocalSelectors()` checks selectorClean+targetId when a targetId is provided (manual add via Target Details), but blocks any duplicate during import.
+- **Search shows all targets**: `SearchGrayWolfe()` counts distinct targets from `tempGWSearchResults` after the search loop, so shared selectors surface all their targets.
+- **UPDATE scope**: `UpdateSelectorsTblTargetId()` and `UpdateGWSearchTargetId()` only fill in blank targetIds, preserving existing target assignments on shared selectors.
+
 ## Known Architectural Gaps
 
 These are confirmed issues, not speculative. Future changes should account for them rather than working around them unknowingly.
 
-- **Target bridging bug**: `AddRelatedRowTargets()` in `mod1b_RunAddData.bas` silently overwrites when an imported row spans multiple existing targets (e.g., row has email A belonging to target 1 and phone B belonging to target 2). Error 1963 is commented out. The correct behavior — merging the two targets — is not implemented.
-- **Merge targets not implemented**: `Form_frmMergeTargets` is a stub. There is no way to combine two targets in the UI or code.
-- **Duplicate selectors skipped without target reconciliation**: `FillLocalSelectors()` returns early when a selector already exists locally, without checking whether the existing selector's target matches the incoming row's target. This can leave target membership inconsistent.
 - **Search doesn't expand to target group**: `SearchGrayWolfe()` returns exact selector matches only. It does not return sibling selectors belonging to the same target, so the user must manually navigate to the target to see the full picture.
 - **No import transaction safety**: Import operations (`RunAddSchemaData`, `FillLocalSelectors`, etc.) are not wrapped in transactions. A mid-import failure (network error, SharePoint timeout) can leave partial data in local tables without corresponding SharePoint records.

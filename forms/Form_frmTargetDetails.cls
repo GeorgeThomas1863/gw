@@ -51,7 +51,7 @@ End Sub
 
 Private Sub btnMerge_Click()
 
-    DoCmd.OpenForm "frmMergeTargets"
+    DoCmd.OpenForm "frmMergeTargets", , , , , , Me.txtTargetId
 End Sub
 
 Private Sub btnReset_Click()
