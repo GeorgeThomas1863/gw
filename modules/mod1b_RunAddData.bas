@@ -238,10 +238,9 @@ End Function
 
 'inputStr is user input, addSelectorStr is new selectors
 Function AddRelatedRowTargets(inputStr As String, typeStr As String, addSelectorsStr As String) As String
-    Dim inputArr() As String, targetArr() As String
-    Dim targetIdsStr As String, targetIdStr As String
-    Dim mergeResult As Boolean
-    Dim i As Long
+    Dim inputArr() As String, targetArr() As String, selectorArr() As String, typeArr() As String
+    Dim targetIdsStr As String, targetIdStr As String, tId As String, dupResult As String
+    Dim i As Long, j As Long
 
     inputArr = Split(inputStr, "!!")
 
@@ -263,14 +262,29 @@ Function AddRelatedRowTargets(inputStr As String, typeStr As String, addSelector
             targetIdStr = Trim(targetArr(0))
 
         Else
-            '2+ targets found - merge them all into the first one
+            '2+ targets found - add all selectors to ALL targets (no merge)
             targetIdStr = Trim(targetArr(0))
-            For i = 1 To UBound(targetArr)
-                mergeResult = MergeTargets(targetIdStr, Trim(targetArr(i)))
-                If Not mergeResult Then
-                    Debug.Print "MERGE FAILED: keep=" & targetIdStr & " absorb=" & Trim(targetArr(i))
-                End If
-            Next
+
+            'fill blank targetIds with first target (for new selectors from AddRelatedRowSelectors)
+            UpdateSelectorsTblTargetId inputStr, targetIdStr
+
+            'ensure every selector exists under every matched target
+            selectorArr = Split(inputStr, "!!")
+            typeArr = Split(typeStr, "!!")
+
+            For i = 0 To UBound(targetArr)
+                tId = Trim(targetArr(i))
+                For j = 0 To UBound(selectorArr)
+                    If Trim(selectorArr(j)) <> "" And LCase(Trim(selectorArr(j))) <> "null" Then
+                        dupResult = FillLocalSelectors(Trim(selectorArr(j)), Trim(typeArr(j)), tId)
+                    End If
+                Next j
+                UpdateTargetsSelectorCountTbl tId
+            Next i
+
+            UpdateGWSearchTargetId inputStr, targetIdStr
+            AddRelatedRowTargets = targetIdStr
+            Exit Function
         End If
     End If
 
