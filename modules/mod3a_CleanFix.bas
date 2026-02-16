@@ -17,8 +17,6 @@ Function CleanDelimInput(str As String, delim As String) As String
     
     If Trim(LCase(delimStr)) = "new row" Then delimStr = Chr(13)
     
-    Debug.Print "INPUT STR: " & inputStr
-    Debug.Print "DELIM STR: " & delimStr
 '    Debug.Print InStr(inputStr, Chr(10))
 '    Debug.Print InStr(inputStr, Chr(13))
     
@@ -401,8 +399,7 @@ End Function
 
 Function FixAddressStr(str As String) As String
     Dim regex As Object, matches As Object
-    Dim inputStr As String, zipStr As String, stateArr As Variant, stateStr As String, patternStr As String, returnStr As String
-    Dim i As Long
+    Dim inputStr As String, zipStr As String, stateStr As String, patternStr As String, returnStr As String
     
     inputStr = Trim(str)
     If inputStr = "" Then FixAddressStr = "": Exit Function
@@ -411,27 +408,11 @@ Function FixAddressStr(str As String) As String
     regex.IgnoreCase = True
     regex.Global = False
     
-    'build using state arr
-    stateStr = ""
-    stateArr = DefineStateArr
-    For i = LBound(stateArr) To UBound(stateArr)
-        stateStr = stateStr & stateArr(i) & "|"
-    Next
-    
-    stateStr = Trim(Left(stateStr, Len(stateStr) - 1))
-    patternStr = "^(.+?),?\s+([^,]+?),?\s+(" & stateStr & ")\s*(\d{5}(?:-\d{4})?)?$"
-    
-    'Debug.Print "PATTERN STR: " & patternStr
-    
-    ' Address pattern per claude; Matches: 123 Main St, Springfield, IL 62701 | 123 Main Street Springfield IL 62701 | 123 Main St, Springfield Illinois 62701-1234
-    'regex.Pattern = "^(.+?),?\s+([^,]+?),?\s+(AL|AK|AZ|AR|CA|CO|CT|DE|FL|GA|HI|ID|IL|IN|IA|KS|KY|LA|ME|MD|MA|MI|MN|MS|MO|MT|NE|NV|NH|NJ|NM|NY|NC|ND|OH|OK|OR|PA|RI|SC|SD|TN|TX|UT|VT|VA|WA|WV|WI|WY|DC)\s*(\d{5}(?:-\d{4})?)?$"
+    patternStr = "^(.+?),?\s+([^,]+?),?\s+(" & BuildStatePattern() & ")\s*(\d{5}(?:-\d{4})?)?$"
     regex.Pattern = patternStr
-    
-    Debug.Print "FIX ADDRESS INPUT STR: " & inputStr
     
     'no hits, just return
     If Not regex.Test(inputStr) Then
-        Debug.Print "NO HITS FOR " & inputStr
         FixAddressStr = inputStr: Exit Function
     End If
     
@@ -448,12 +429,8 @@ Function FixAddressStr(str As String) As String
     stateStr = matches(0).SubMatches(2)
     If Len(stateStr) > 2 Then stateStr = StateMap(stateStr)
     
-    Debug.Print "STATESTR: " & stateStr
-        
     'Build result: street city, state zip
     returnStr = Trim(matches(0).SubMatches(0) & " " & matches(0).SubMatches(1) & ", " & stateStr & " " & zipStr)
-    
-    Debug.Print "RETURN STR: " & returnStr
     
     FixAddressStr = returnStr
 
@@ -574,15 +551,6 @@ Function FixDate(str As String) As Date
     'Debug.Print "DATE STR: " & dateStr
     
     FixDate = CDate(dateStr)
-End Function
-
-'for formatting form
-Function InchesToTwips(inches As Double) As Double
-    Dim twips As Double
-    
-    twips = inches * 1440
-    
-    InchesToTwips = twips
 End Function
 
 'uses some built in ref library might need to import System.Collections

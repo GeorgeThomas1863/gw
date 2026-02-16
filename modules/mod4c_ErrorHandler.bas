@@ -147,16 +147,14 @@ Function ThrowError(errCode As Long, errMsg As String) As String
 
     End Select
     
-    Debug.Print "Error Code: " & errCode & "; Message: " & errMsg & "; ErrorStr (popup): " & errorStr
-    
     'Display message
     displayMsg = MsgBox(errorStr, , "#FAIL")
     GoTo Kill
-    
+
     Exit Function
 
-'End All Execution (prob causes crashes)
+'Stop execution by raising error back to caller (End resets all module-level variables and drops connections)
 Kill:
-    End
-    
+    Err.Raise vbObjectError + errCode, "ThrowError", "User cancel or error #" & errCode
+
 End Function

@@ -14,16 +14,13 @@ Function DetectInputDelimiter(str) As String
     Dim hitStr As String, hitItem As String, rowCount As Long
     Dim i As Long, j As Long, t As Long, x As Long, y As Long
     
-    Debug.Print "^^^^" & vbLf & "DETECT INPUT STR: " & str
-    
     inputStr = Trim(LCase(str))
     If inputStr = "" Then DetectInputDelimiter = "New Row": Exit Function
 
     'split by row (remove extra return)
     rowStr = Trim(Replace(inputStr, Chr(13), ""))
     rowStr = Trim(Replace(rowStr, Chr(10), "+++"))
-    Debug.Print "ROW STR: " & rowStr
-    
+
     rowArr = Split(rowStr, "+++")
     
     rowCount = UBound(rowArr) + 1
@@ -341,7 +338,6 @@ Function CheckAddress(str As String) As Boolean
     If wordCount < 1 Or wordCount > 15 Then CheckAddress = False: Exit Function
     
     'ONLY HIT ON US ADDRESSES FOR NOW, MAYBE ADD POPUP FOR FOREIGN?
-    Debug.Print "ADDRESS: " & addressStr & " | CHECK STATE: " & CheckState(addressStr)
     If CheckState(addressStr) = False Then CheckAddress = False: Exit Function
     
     CheckAddress = True
@@ -380,33 +376,20 @@ Function CheckStreet(str As String) As Boolean
 End Function
 
 Function CheckState(str As String) As Boolean
-    Dim regex As Object, stateArr As Variant
-    Dim inputStr As String, stateStr As String, patternStr As String
-    Dim i As Long
-    
+    Dim regex As Object
+    Dim inputStr As String, patternStr As String
+
     inputStr = Trim(str)
-    
+
     Set regex = CreateObject("VBScript.RegExp")
     regex.IgnoreCase = True
     regex.Global = False
-    
-    stateStr = ""
-    stateArr = DefineStateArr
-    For i = LBound(stateArr) To UBound(stateArr)
-        stateStr = stateStr & stateArr(i) & "|"
-    Next
-    
-    stateStr = Trim(Left(stateStr, Len(stateStr) - 1))
-    patternStr = "^(.+?),?\s+([^,]+?),?\s+(" & stateStr & ")\s*(\d{5}(?:-\d{4})?)?$"
-    
-    'Debug.Print "PATTERN STR: " & patternStr
-    
-    ' Address pattern per claude; Matches: 123 Main St, Springfield, IL 62701 | 123 Main Street Springfield IL 62701 | 123 Main St, Springfield Illinois 62701-1234
-    'regex.Pattern = "^(.+?),?\s+([^,]+?),?\s+(AL|AK|AZ|AR|CA|CO|CT|DE|FL|GA|HI|ID|IL|IN|IA|KS|KY|LA|ME|MD|MA|MI|MN|MS|MO|MT|NE|NV|NH|NJ|NM|NY|NC|ND|OH|OK|OR|PA|RI|SC|SD|TN|TX|UT|VT|VA|WA|WV|WI|WY|DC)\s*(\d{5}(?:-\d{4})?)?$"
+
+    patternStr = "^(.+?),?\s+([^,]+?),?\s+(" & BuildStatePattern() & ")\s*(\d{5}(?:-\d{4})?)?$"
     regex.Pattern = patternStr
-    
+
     If regex.Test(inputStr) Then CheckState = True: Exit Function
-    
+
     CheckState = False
 End Function
 
@@ -586,7 +569,7 @@ Function IsAllLetters(str As String) As Boolean
         
         'fail conditions
         If ascii < 65 Or ascii > 122 Then IsAllLetters = False: Exit Function
-        If ascii < 90 And ascii < 97 Then IsAllLetters = False: Exit Function
+        If ascii > 90 And ascii < 97 Then IsAllLetters = False: Exit Function
     Next
     
     'otherwise true
@@ -658,56 +641,6 @@ FAIL:
     CheckKeyExists = False
 End Function
 
-
-'+++++++++++++++++++++++++++++++++++++++++
-
-'checks if obv address, and then splits on commas
-Function CheckCommaDelim(str As String) As String
-    Dim commaArr() As String, commaItem As String
-    Dim i As Long
-    
-    'Debug.Print "COMMA INPUT STR: " & str
-    
-    'return if obv an adddress
-    If CheckAddress(str) Then CheckCommaDelim = str: Exit Function
-    
-    'split on comma, check if all items are valid
-    commaArr = Split(Trim(str), ",")
-    For i = LBound(commaArr) To UBound(commaArr)
-        commaItem = commaArr(i)
-        If Trim(commaItem) <> "" Then
-        
-            'cant find
-            If DetectSelectorType(commaItem, "") = "NULL" Then CheckCommaDelim = str: Exit Function
-        End If
-    Next
-    
-    'otehrwise assume comma delim
-    CheckCommaDelim = Replace(str, ",", "!!")
-End Function
-
-'split on space and if any item is not detectable assume NOT delim
-Function CheckSpaceDelim(str As String) As String
-    Dim spaceArr() As String, spaceItem As String
-    Dim i As Long
-    
-    'check if obv part of name or address
-    If CheckName(str) Or CheckAddress(str) Then CheckSpaceDelim = str: Exit Function
-    
-    'split and loop individually
-    spaceArr = Split(Trim(str), " ")
-    For i = LBound(spaceArr) To UBound(spaceArr)
-        spaceItem = spaceArr(i)
-        If Trim(spaceItem) <> "" Then
-        
-            'cant find
-            If DetectSelectorType(spaceItem, "") = "NULL" Then CheckSpaceDelim = str: Exit Function
-        End If
-    Next
-    
-    'otherwise all valid items with space delim
-    CheckSpaceDelim = Replace(Trim(str), " ", "!!")
-End Function
 
 '+++++++++++++++++++++++++++++++++++++++++
 
@@ -878,8 +811,6 @@ Function CheckToken(str As String) As String
 
     token = Trim(str)
     
-    Debug.Print "TOKEN CHECK INPUT: " & token
-    
     'null input / 'wrong format
     If token = "" Or LCase(Trim(token)) = Trim(LCase(DefineFormDefaults("txtToken"))) Then ThrowError 1966, "Token Input: " & token: Exit Function
     If Len(token) < 20 Then ThrowError 1967, "Token Input: " & token: Exit Function 'make more complex if needed
@@ -893,27 +824,19 @@ Function CheckToken(str As String) As String
     'test1
     'TestHeaderMethods apiTest1, token
     res = WinINetReq(apiTest1, token)
-    Debug.Print "TEST 1"
-    Debug.Print res
     If UCase(Trim(Left(res, InStr(res, " ") - 1))) <> "FORBIDDEN" And InStr(UCase(res), "HTTPSENDREQUEST FAILED") = 0 Then CheckToken = token: Exit Function
     'Debug.Print res
 
     '2 [usually the one that passes, no clue why]
     res = WinINetReq(apiTest2, token)
-    Debug.Print "TEST 2"
-    Debug.Print res
     If UCase(Trim(Left(res, InStr(res, " ") - 1))) <> "FORBIDDEN" And InStr(UCase(res), "HTTPSENDREQUEST FAILED") = 0 Then CheckToken = token: Exit Function
     
     '3
     res = GetXML(apiTest3, token)
-    Debug.Print "TEST 3"
-    Debug.Print res
     If UCase(Trim(Left(res, InStr(res, " ") - 1))) <> "FORBIDDEN" And InStr(UCase(res), "HTTPSENDREQUEST FAILED") = 0 Then CheckToken = token: Exit Function
     
     '4
     res = WinINetReq(apiTest4, token)
-    Debug.Print "TEST 4"
-    Debug.Print res
     If UCase(Trim(Left(res, InStr(res, " ") - 1))) <> "FORBIDDEN" And InStr(UCase(res), "HTTPSENDREQUEST FAILED") = 0 Then CheckToken = token: Exit Function
 
     CheckToken = ThrowError(1968, token)

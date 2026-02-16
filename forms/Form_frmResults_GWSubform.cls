@@ -100,81 +100,20 @@ End Sub
 '++++++++++++++++++++++++++++
 
 'open targets form
-Private Sub txtSelector_DblClick(Cancel As Integer)
+Private Sub OpenTargetFromRow()
     Dim targetIdStr As String
-    
-    targetIdStr = Nz(Trim(Me.targetId), "")
-    If targetIdStr = "" Or LCase(targetIdStr) = "null" Then Exit Sub
-    
-    DoCmd.OpenForm "frmTargetDetails", acNormal, , , , , targetIdStr
-    
-    'DoCmd.OpenForm "frmTargetDetails", , , "txtTargetId=" & targetIdStr
-End Sub
 
-Private Sub txtSHits_DblClick(Cancel As Integer)
-    Dim targetIdStr As String
-    
     targetIdStr = Nz(Trim(Me.targetId), "")
     If targetIdStr = "" Or LCase(targetIdStr) = "null" Then Exit Sub
-    
+
     DoCmd.OpenForm "frmTargetDetails", acNormal, , , , , targetIdStr
 End Sub
 
-
-Private Sub txtInGW_DblClick(Cancel As Integer)
-    Dim targetIdStr As String
-    
-    targetIdStr = Nz(Trim(Me.targetId), "")
-    If targetIdStr = "" Or LCase(targetIdStr) = "null" Then Exit Sub
-    
-    DoCmd.OpenForm "frmTargetDetails", acNormal, , , , , targetIdStr
-End Sub
-
-Private Sub txtAddedGW_DblClick(Cancel As Integer)
-    Dim targetIdStr As String
-    
-    targetIdStr = Nz(Trim(Me.targetId), "")
-    If targetIdStr = "" Or LCase(targetIdStr) = "null" Then Exit Sub
-    
-    DoCmd.OpenForm "frmTargetDetails", acNormal, , , , , targetIdStr
-End Sub
-
-
-Private Sub txtTargetName_DblClick(Cancel As Integer)
-    Dim targetIdStr As String
-    
-    targetIdStr = Nz(Trim(Me.targetId), "")
-    If targetIdStr = "" Or LCase(targetIdStr) = "null" Then Exit Sub
-    
-    DoCmd.OpenForm "frmTargetDetails", acNormal, , , , , targetIdStr
-End Sub
-
-
-Private Sub txtTargetId_DblClick(Cancel As Integer)
-    Dim targetIdStr As String
-    
-    targetIdStr = Nz(Trim(Me.targetId), "")
-    If targetIdStr = "" Or LCase(targetIdStr) = "null" Then Exit Sub
-    
-    DoCmd.OpenForm "frmTargetDetails", acNormal, , , , , targetIdStr
-End Sub
-
-
-Private Sub txtLastUpdated_DblClick(Cancel As Integer)
-    Dim targetIdStr As String
-    
-    targetIdStr = Nz(Trim(Me.targetId), "")
-    If targetIdStr = "" Or LCase(targetIdStr) = "null" Then Exit Sub
-    
-    DoCmd.OpenForm "frmTargetDetails", acNormal, , , , , targetIdStr
-End Sub
-
-
-Private Sub txtLastUpdatedBy_DblClick(Cancel As Integer)
-    Dim targetIdStr As String
-    
-    targetIdStr = Nz(Trim(Me.targetId), "")
-    If targetIdStr = "" Or LCase(targetIdStr) = "null" Then Exit Sub
-    
-    DoCmd.OpenForm "frmTargetDetails", acNormal, , , , , targetIdStr
-End Sub
+Private Sub txtSelector_DblClick(Cancel As Integer): OpenTargetFromRow: End Sub
+Private Sub txtSHits_DblClick(Cancel As Integer): OpenTargetFromRow: End Sub
+Private Sub txtInGW_DblClick(Cancel As Integer): OpenTargetFromRow: End Sub
+Private Sub txtAddedGW_DblClick(Cancel As Integer): OpenTargetFromRow: End Sub
+Private Sub txtTargetName_DblClick(Cancel As Integer): OpenTargetFromRow: End Sub
+Private Sub txtTargetId_DblClick(Cancel As Integer): OpenTargetFromRow: End Sub
+Private Sub txtLastUpdated_DblClick(Cancel As Integer): OpenTargetFromRow: End Sub
+Private Sub txtLastUpdatedBy_DblClick(Cancel As Integer): OpenTargetFromRow: End Sub

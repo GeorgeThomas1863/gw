@@ -101,7 +101,7 @@ Private Function BuildTypeStr(colMax As Long) As String
     For i = 1 To colMax
         itemStr = Trim(Me.Controls("cboColumn" & i).Value)
         
-        'fix the fucking selector type again dumbfuck
+        'normalize selector type from combo box
         If itemStr <> "" Then returnStr = returnStr & CleanSelectorInput(itemStr) & "!!"
     Next
     

@@ -16,6 +16,24 @@ Option Explicit
     Public Declare Sub Sleep Lib "kernel32" (ByVal dwMilliseconds As Long)
 #End If
 
+'escapes single quotes for SQL string concatenation
+Function SqlSafe(str As String) As String
+    SqlSafe = Replace(str, "'", "''")
+End Function
+
+'builds state regex alternation from DefineStateArr (used by CheckState and FixAddressStr)
+Function BuildStatePattern() As String
+    Dim stateArr As Variant, stateStr As String
+    Dim i As Long
+
+    stateStr = ""
+    stateArr = DefineStateArr
+    For i = LBound(stateArr) To UBound(stateArr)
+        stateStr = stateStr & stateArr(i) & "|"
+    Next
+
+    BuildStatePattern = Trim(Left(stateStr, Len(stateStr) - 1))
+End Function
 
 Function DefineFormDefaults(str As String) As String
     Dim returnStr As String
@@ -270,33 +288,6 @@ Function DefineFormTypeArr() As Variant
     DefineFormTypeArr = formTypeArr
 End Function
 
-Function DefineTableArr() As Variant
-    Dim tableArr As Variant
-    
-    tableArr = Array("", "targets", "addresses", "emails", "phones", "ips", "linkedin", "github", "discord", "telegram", "otherSelectors")
-    DefineTableArr = tableArr
-End Function
-
-Function DefineColumnSearchArr() As Variant
-    Dim colArr As Variant
-    
-    '(prob dumb way to do it)
-    colArr = Array("", "realName", "address!!street", "email!!displayName", "phone", "ip", "linkedin!!displayName", "github!!displayName", _
-    "discordId!!username!!displayName", "tgId!!username!!displayName", "selector!!username!!displayName")
-    
-    DefineColumnSearchArr = colArr
-End Function
-
-Function DefineColumnAddArr() As Variant
-    Dim colArr As Variant
-    
-    'NEED to build out ways for each data type
-    'note username for discord / tg
-    colArr = Array("", "realName", "address", "email", "phone", "ip", "linkedin", "github", "username", "username", "selector")
-    
-    DefineColumnAddArr = colArr
-End Function
-
 Function DefineDetectOrderArr() As Variant
     Dim detectOrderArr As Variant
     
@@ -314,15 +305,6 @@ Function DefineDetectTypeArr() As Variant
 
 End Function
     'order most obv to least
-    
-Function DefineTargetFormTextBoxes() As Variant
-    Dim textBoxArr As Variant
-    
-    textBoxArr = Array("txtTargetId", "txtTargetName", "txtCaseNumber", "txtPersonaNames", "txtAddresses", "txtEmails", "txtPhones", "txtIPs", "txtOther", "txtNorks")
-    
-    DefineTargetFormTextBoxes = textBoxArr
-End Function
-
 
 'using time bc normal things blocked
 Function DefineUniqueId() As String
@@ -359,76 +341,6 @@ Function DetectFunctionMap(str As String) As String
     
     'otherwise throw error
     'ThrowError 1958, str: Exit Function
-End Function
-
-Function TableMap(str As String) As String
-    Dim dict As Object
-    Dim keyArr As Variant, valueArr As Variant, searchStr As String
-    Dim i As Long, j As Long
-    
-     searchStr = Trim(LCase(str))
-    
-   'build dictionary with loop
-    keyArr = DefineSelectorTypeArr()
-    valueArr = DefineTableArr()
-
-    Set dict = CreateObject("Scripting.Dictionary")
-    For i = LBound(keyArr) To UBound(keyArr)
-        dict.Add Trim(LCase(keyArr(i))), Trim(LCase(valueArr(i)))
-    Next
-    
-    'check and return input
-   
-    If CheckKeyExists(dict, searchStr) = False Then TableMap = "": Exit Function
-    TableMap = dict(searchStr)
-
-End Function
-
-'table as key
-Function ColumnSearchMap(str As String) As String
-    Dim dict As Object
-    Dim keyArr As Variant, valueArr As Variant, searchStr As String
-    Dim i As Long, j As Long
-    
-    searchStr = Trim(str)
-    
-   'build dictionary with loop
-    keyArr = DefineTableArr()
-    valueArr = DefineColumnSearchArr()
-
-    Set dict = CreateObject("Scripting.Dictionary")
-    For i = LBound(keyArr) To UBound(keyArr)
-        dict.Add Trim(keyArr(i)), Trim(valueArr(i))
-    Next
-    
-    'check and return input
-   
-    If CheckKeyExists(dict, searchStr) = False Then ColumnSearchMap = "": Exit Function
-    ColumnSearchMap = dict(searchStr)
-End Function
-
-
-'table as key
-Function ColumnAddMap(str As String) As String
-    Dim dict As Object
-    Dim keyArr As Variant, valueArr As Variant, searchStr As String
-    Dim i As Long, j As Long
-    
-    searchStr = Trim(str)
-    
-   'build dictionary with loop
-    keyArr = DefineTableArr()
-    valueArr = DefineColumnAddArr()
-
-    Set dict = CreateObject("Scripting.Dictionary")
-    For i = LBound(keyArr) To UBound(keyArr)
-        dict.Add Trim(keyArr(i)), Trim(valueArr(i))
-    Next
-    
-    'check and return input
-   
-    If CheckKeyExists(dict, searchStr) = False Then ColumnAddMap = "": Exit Function
-    ColumnAddMap = dict(searchStr)
 End Function
 
 Function TargetFormDisplayMap(str As String) As String
@@ -498,155 +410,3 @@ Function StateMap(str As String) As String
 
 End Function
 
-'----------------------------------
-
-'++++++++++++++++++++++++++++++++++++
-
-
-
-'Debug.prints ALL items in (very) nested objects (dictionaries); mostly works
-'@returns debug.prints everything, returns str on success
-Function PrintObj(obj As Object) As String
-    Dim k As Variant, x As Long, keyStr As String, valType As String
-    Dim testData As String
-    
-    If obj Is Nothing Or obj.Count = 0 Then PrintObj = "OBJECT EMPTY": Exit Function
-    
-    For Each k In obj.Keys
-        Debug.Print "++++++++++++++++++++++++++++++"
-        
-        valType = TypeName(obj(k))
-        
-        If valType <> "Nothing" Then
-
-            Select Case valType
-            
-                Case "Dictionary"
-                    Debug.Print "KEY: " & k & " | VALUE: {DICTIONARY WITH " & obj(k).Count & " ITEMS}"
-                    RecursivePrint obj(k), 1
-                    
-                Case "Collection"
-                    Debug.Print "KEY: " & k & " | VALUE: [COLLECTION WITH " & obj(k).Count & " ITEMS]"
-                    RecursivePrint obj(k), 1
-                    
-                Case "Array", "Variant()", "String()"
-                    Debug.Print "KEY: " & k & " | VALUE: [ARRAY WITH " & UBound(obj(k)) + 1 & " ITEMS]"
-                    RecursivePrint obj(k), 1
-                
-                Case Else
-                    Debug.Print "KEY: " & k & " | VALUE: " & obj(k)
-            End Select
-        End If
-    
-    Next
-      
-    PrintObj = "NO ERRORS"
-End Function
-
-
-'Recursive function that does most heavy lifting for obj print operation
-'@params: value being printed (variant), indent value (optional)
-'@returns debug.prints nested items
-Function RecursivePrint(str As Variant, Optional x As Long = 0)
-    Dim strType As String, valType As String, arrType As String, colType As String
-    Dim i As Long, k As Variant
-    
-    strType = TypeName(str)
-    
-    'On Error Resume Next
-    Select Case strType
-        'dictionary top level
-        Case "Dictionary"
-            'empty dictionary
-            If str Is Nothing Or str.Count = 0 Then Debug.Print "OBJECT EMPTY"
-            
-            'loop through
-            For Each k In str.Keys
-                'If keyStr = "" Then keyStr = "KEY: " & k
-                
-                valType = TypeName(str(k))
-                Select Case valType
-                    Case "Dictionary", "Object"
-                        Debug.Print GetIndentStr(x) & "KEY: " & k & " | VALUE: {DICTIONARY WITH " & str(k).Count & " ITEMS}"
-                        RecursivePrint str(k), x + 1
-                    
-                    Case "Collection"
-                        Debug.Print GetIndentStr(x) & "KEY: " & k & " | VALUE: [COLLECTION WITH " & str(k).Count & " ITEMS]"
-                        RecursivePrint str(k), x + 1
-        
-                    Case "Array", "Variant()", "String()"
-                        Debug.Print GetIndentStr(x) & "KEY: " & k & " | VALUE: [ARRAY WITH " & UBound(str(k)) + 1 & " ITEMS]"
-                        RecursivePrint str(k), x + 1
-        
-                    Case "Nothing"
-                        
-                    Case Else
-                        Debug.Print GetIndentStr(x) & "KEY: " & k & " | VALUE: " & str(k)
-                        
-                End Select
-            Next
-        
-        Case "Collection"
-            For i = 1 To str.Count
-                'If keyStr = "" Then keyStr = "ITEM: " & str(i)
-                colType = TypeName(str(i))
-                
-                Select Case colType
-                    Case "Dictionary"
-                        Debug.Print GetIndentStr(x) & "ITEM: " & i & " | VALUE: {DICTIONARY WITH " & str(i).Count & " ITEMS}"
-                        RecursivePrint str(i), x + 1
-    
-                    Case "Array", "Variant()", "String()"
-                        Debug.Print GetIndentStr(x) & "ITEM: " & " | VALUE: [ARRAY WITH " & UBound(str(i)) + 1 & " ITEMS]"
-                        RecursivePrint str(i), x + 1
-    
-                    Case "Nothing"
-                    
-                    Case Else
-                        Debug.Print GetIndentStr(x) & "ITEM: " & " | VALUE: " & str
-                End Select
-            Next
-                    
-        
-         Case "Array", "Variant()", "String()"
-            'emptyarray
-            If UBound(str) = -1 Then Debug.Print "ARRAY EMPTY"
-        
-            For i = LBound(str) To UBound(str)
-                arrType = TypeName(str(i))
-        
-                Select Case arrType
-                    Case "Dictionary"
-                        RecursivePrint str(i), x + 1
-            
-                    Case "Array", "Variant()", "String()"
-                        RecursivePrint str(i), x + 1
-            
-                    Case "Nothing"
-                    
-                    Case Else
-                        Debug.Print GetIndentStr(x) & "Index: " & i & " | VALUE: " & str(i)
-                End Select
-            Next
-            
-        Case "Nothing"
-        
-        'string top level
-        Case Else
-            Debug.Print GetIndentStr(x) & " | VALUE: " & str
-    End Select
-End Function
-
-'calculates / returns indent str based on nested level
-'@params: level of nesting
-'@returns: indent str
-Function GetIndentStr(x As Long) As String
-    Dim str As String
-    
-    If x > 0 Then
-        str = String(x * 5, "-")
-        GetIndentStr = str: Exit Function
-    End If
-    
-    GetIndentStr = ""
-End Function

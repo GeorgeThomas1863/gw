@@ -356,7 +356,6 @@ Private Sub Form_Timer()
     
     Case "txtSearchInput"
         str = DetectInputDelimiter(Me.txtSearchInput.Text)
-        Debug.Print "DELIM DETECTED: " & str
         Me.cboSearchDelimiter.DefaultValue = """" & str & """"
         Me.cboSearchDelimiter.TextAlign = 2
         

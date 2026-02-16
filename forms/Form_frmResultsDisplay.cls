@@ -31,10 +31,6 @@ Private Sub Form_Load()
     Dim filterStr As String, filterItem As String, targetStr As String, targetItem As String, targetFilterStr As String
     Dim i As Long, x As Long
     
-    Debug.Print "++++++++++++++++" & vbLf & "FORM LOAD"
-    Debug.Print "OPEN ARGS INPUT"
-    Debug.Print Me.OpenArgs
-    
     '''''''
     'OPEN ARGS:
     'itemsSearched $$ GW target hits !! GW selector hits $$ S hits !! in S $$ SFilter
@@ -47,7 +43,6 @@ Private Sub Form_Load()
     If IsNull(Me.OpenArgs) Then Exit Sub
     
     arr = Split(Me.OpenArgs, "$$")
-    Debug.Print "UBOUND: " & UBound(arr)
     
     If UBound(arr) < 3 Then ThrowError 1971, "OPEN ARGS: " & Me.OpenArgs: Exit Sub
     
@@ -296,18 +291,15 @@ Public Sub ApplyFilterS()
         Me.subSResults.Form.Filter = "'*'"
         Me.subSResults.Form.FilterOn = False
         Me.subSResults.SetFocus
-        Debug.Print "^^^^^^^^^" & vbLf & "CHANGING FILTER STR TO: " & Me.subSResults.Form.Filter
         Exit Sub
     End If
-    
+
     'remove trailing
     filterStr = Trim(Left(filterStr, Len(filterStr) - 5))
-    
+
     Me.subSResults.Form.Filter = filterStr
     Me.subSResults.Form.FilterOn = True
     Me.subSResults.SetFocus
-    
-    Debug.Print "^^^^^^^^^" & vbLf & "CHANGING FILTER STR TO: " & Me.subSResults.Form.Filter
 End Sub
 
 'reset everything
@@ -329,8 +321,6 @@ Public Sub ClearFilterS(Optional clearType As String = "")
     Me.subSResults.Form.FilterOn = False
     
     If clearType = "searchClick" Then Me.subSResults.SetFocus
-    
-    Debug.Print "^^^^^^^^^" & vbLf & "CLEARING ALL FILTERS, CHANGING TO: " & Me.subSResults.Form.Filter
 End Sub
 
 '++++++++++++++++
@@ -434,18 +424,15 @@ Public Sub ApplyFilterGW()
         Me.subGWResults.Form.Filter = "'*'"
         Me.subGWResults.Form.FilterOn = False
         Me.subGWResults.SetFocus
-        Debug.Print "^^^^^^^^^" & vbLf & "CHANGING FILTER STR TO: " & Me.subGWResults.Form.Filter
         Exit Sub
     End If
-    
+
     'remove trailing
     filterStr = Trim(Left(filterStr, Len(filterStr) - 5))
-    
+
     Me.subGWResults.Form.Filter = filterStr
     Me.subGWResults.Form.FilterOn = True
     Me.subGWResults.SetFocus
-    
-    Debug.Print "^^^^^^^^^" & vbLf & "CHANGING FILTER STR TO: " & Me.subGWResults.Form.Filter
 End Sub
 
 'reset everything
@@ -469,39 +456,8 @@ Public Sub ClearFilterGW(Optional clearType As String = "")
     Me.subGWResults.Form.FilterOn = False
     
     If clearType = "gwClick" Then Me.subGWResults.SetFocus
-    
-    Debug.Print "^^^^^^^^^" & vbLf & "CLEARING ALL FILTERS, CHANGING TO: " & Me.subGWResults.Form.Filter
 End Sub
 
-
-'Private Sub cboGWHitsFilter_AfterUpdate()
-'    Dim db As DAO.Database, rs As DAO.Recordset
-'    Dim filterStr As String, selectStr As String, strSQL As String
-'
-'    If IsNull(Me.cboGWHitsFilter) Then Exit Sub
-'
-'    selectStr = Trim(Me.cboGWHitsFilter)
-'
-'    If InStr(selectStr, "[Display All GW Hits]") > 0 Then
-'        Me.subGWResults.Form.FilterOn = False
-'        Me.subGWResults.Form.Filter = "'*'"
-'        Exit Sub
-'    End If
-'
-'    strSQL = "SELECT * FROM [tempGWSearchResults] WHERE [targetName] = '" & selectStr & "'"
-'
-'    Set db = CurrentDb
-'    Set rs = db.OpenRecordset(strSQL, dbOpenSnapshot)
-'
-'    If rs.EOF Then
-'        filterStr = "[targetId] = '" & selectStr & "'"
-'    Else
-'        filterStr = "[targetName] = '" & selectStr & "'"
-'    End If
-'
-'    Me.subGWResults.Form.Filter = filterStr
-'    Me.subGWResults.Form.FilterOn = True
-'End Sub
 
 
 

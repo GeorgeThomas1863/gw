@@ -22,14 +22,6 @@ Public norksCurrent As String
 Public laptopsCurrent As Long
 
 Private Sub Form_Load()
-    Debug.Print "FORM LOAD EVENT"
-    
-    'very slow
-    'UpdateTotalSelectors
-    
-    'this fucks everything
-    'ResetLocalTablesSP
-    
     Me.subSelectors.Form.Filter = "[selectorCount] = DESC"
     Me.subSelectors.Form.OrderByOn = True
     
@@ -91,18 +83,18 @@ End Sub
 
 Private Sub txtTargetId_LostFocus()
     Dim inputStr As String, targetIdStr As String, ctlStr As String
-    
+    Dim popupCheck As Integer
+
     inputStr = Nz(Me.txtTargetId, "")
     If inputStr = targetIdCurrent Then Exit Sub
-    
+
     'check if sure
     popupCheck = MsgBox(DefineFormDefaults("changeTargetId"), vbYesNo + vbDefaultButton2, "ARE YOU SURE!?!")
     If popupCheck = vbNo Then Me.txtTargetId = targetIdCurrent: Exit Sub
-    
+
     'get from subform
     targetIdStr = Me.subSelectors.Form.txtTargetId
-    ctl = Screen.ActiveControl.Name
-    Debug.Print "CTL: " & ctl
+    ctlStr = Screen.ActiveControl.Name
         
     UpdateTargetStatsForm targetIdStr, inputStr, "targetId"
     targetIdCurrent = inputStr
@@ -111,9 +103,9 @@ Private Sub txtTargetId_LostFocus()
     Me.subSelectors.SetFocus
     DoCmd.FindRecord inputStr
     
-    Me.Controls(ctl).SetFocus
-    Me.Controls(ctl).SelStart = Len(inputStr) + 10 'extra for uncounted spaces
-    Me.Controls(ctl).SelLength = 0
+    Me.Controls(ctlStr).SetFocus
+    Me.Controls(ctlStr).SelStart = Len(inputStr) + 10 'extra for uncounted spaces
+    Me.Controls(ctlStr).SelLength = 0
 End Sub
 
 Private Sub txtTargetName_LostFocus()
@@ -153,132 +145,49 @@ Private Sub txtCaseNumber_LostFocus()
 
 End Sub
 
-Private Sub txtPersonaNames_LostFocus()
-    Dim inputStr As String, targetIdStr As String
-    
-    inputStr = FixTargetDelimiters(Trim(Me.txtPersonaNames.Text))
-    personaNamesCurrent = FixTargetDelimiters(Trim(personaNamesCurrent))
-    
-    If inputStr = personaNamesCurrent Then Exit Sub
-    
+Private Sub SaveSelectorField(ctl As Control, ByVal currentVal As String, ByVal selectorType As String, ByRef newCurrentVal As String)
+    Dim inputStr As String, targetIdStr As String, currentStr As String
+
+    inputStr = FixTargetDelimiters(Trim(ctl.Text))
+    currentStr = FixTargetDelimiters(Trim(currentVal))
+
+    If inputStr = currentStr Then Exit Sub
+
     targetIdStr = Me.txtTargetId
-    
-    UpdateTargetSelectors targetIdStr, inputStr, personaNamesCurrent, "name"
+
+    UpdateTargetSelectors targetIdStr, inputStr, currentStr, selectorType
     UpdateTargetsSelectorCountTbl targetIdStr
-    personaNamesCurrent = inputStr
-    
+    newCurrentVal = inputStr
+
     UpdateLastUpdated targetIdStr, "localTargets"
-    
+
     Me.subSelectors.Form.Requery
     Me.subSelectors.SetFocus
     DoCmd.FindRecord targetIdStr
+End Sub
 
+Private Sub txtPersonaNames_LostFocus()
+    SaveSelectorField Me.txtPersonaNames, personaNamesCurrent, "name", personaNamesCurrent
 End Sub
 
 Private Sub txtAddresses_LostFocus()
-    Dim inputStr As String, targetIdStr As String
-    
-    inputStr = FixTargetDelimiters(Trim(Me.txtAddresses.Text))
-    addressesCurrent = FixTargetDelimiters(Trim(addressesCurrent))
-    
-    If inputStr = addressesCurrent Then Exit Sub
-    
-    targetIdStr = Me.txtTargetId
-    
-    UpdateTargetSelectors targetIdStr, inputStr, addressesCurrent, "address"
-    UpdateTargetsSelectorCountTbl targetIdStr
-    addressesCurrent = inputStr
-    
-    UpdateLastUpdated targetIdStr, "localTargets"
-    
-    Me.subSelectors.Form.Requery
-    Me.subSelectors.SetFocus
-    DoCmd.FindRecord targetIdStr
+    SaveSelectorField Me.txtAddresses, addressesCurrent, "address", addressesCurrent
 End Sub
 
 Private Sub txtEmails_LostFocus()
-    Dim inputStr As String, targetIdStr As String
-    
-    inputStr = FixTargetDelimiters(Trim(Me.txtEmails.Text))
-    emailsCurrent = FixTargetDelimiters(Trim(emailsCurrent))
-    
-    If inputStr = emailsCurrent Then Exit Sub
-    
-    targetIdStr = Me.txtTargetId
-    
-    UpdateTargetSelectors targetIdStr, inputStr, emailsCurrent, "email"
-    UpdateTargetsSelectorCountTbl targetIdStr
-    emailsCurrent = inputStr
-    
-    UpdateLastUpdated targetIdStr, "localTargets"
-    
-    Me.subSelectors.Form.Requery
-    Me.subSelectors.SetFocus
-    DoCmd.FindRecord targetIdStr
+    SaveSelectorField Me.txtEmails, emailsCurrent, "email", emailsCurrent
 End Sub
 
 Private Sub txtPhones_LostFocus()
-    Dim inputStr As String, targetIdStr As String
-    
-    inputStr = FixTargetDelimiters(Trim(Me.txtPhones.Text))
-    phonesCurrent = FixTargetDelimiters(Trim(phonesCurrent))
-    
-    If inputStr = phonesCurrent Then Exit Sub
-    
-    targetIdStr = Me.txtTargetId
-    
-    UpdateTargetSelectors targetIdStr, inputStr, phonesCurrent, "phone"
-    UpdateTargetsSelectorCountTbl targetIdStr
-    phonesCurrent = inputStr
-    
-    UpdateLastUpdated targetIdStr, "localTargets"
-    
-    Me.subSelectors.Form.Requery
-    Me.subSelectors.SetFocus
-    DoCmd.FindRecord targetIdStr
+    SaveSelectorField Me.txtPhones, phonesCurrent, "phone", phonesCurrent
 End Sub
 
 Private Sub txtIPs_LostFocus()
-    Dim inputStr As String, targetIdStr As String
-    
-    inputStr = FixTargetDelimiters(Trim(Me.txtIPs.Text))
-    ipsCurrent = FixTargetDelimiters(Trim(ipsCurrent))
-    
-    If inputStr = ipsCurrent Then Exit Sub
-    
-    targetIdStr = Me.txtTargetId
-    
-    UpdateTargetSelectors targetIdStr, inputStr, ipsCurrent, "ip"
-    UpdateTargetsSelectorCountTbl targetIdStr
-    ipsCurrent = inputStr
-    
-    UpdateLastUpdated targetIdStr, "localTargets"
-    
-    Me.subSelectors.Form.Requery
-    Me.subSelectors.SetFocus
-    DoCmd.FindRecord targetIdStr
+    SaveSelectorField Me.txtIPs, ipsCurrent, "ip", ipsCurrent
 End Sub
 
-'DEAL WITH BELOW
 Private Sub txtOther_LostFocus()
-    Dim inputStr As String, targetIdStr As String
-    
-    inputStr = FixTargetDelimiters(Trim(Me.txtOther.Text))
-    otherCurrent = FixTargetDelimiters(Trim(otherCurrent))
-    
-    If inputStr = otherCurrent Then Exit Sub
-    
-    targetIdStr = Me.txtTargetId
-    
-    UpdateTargetSelectors targetIdStr, inputStr, otherCurrent, "other"
-    UpdateTargetsSelectorCountTbl targetIdStr
-    otherCurrent = inputStr
-    
-    UpdateLastUpdated targetIdStr, "localTargets"
-    
-    Me.subSelectors.Form.Requery
-    Me.subSelectors.SetFocus
-    DoCmd.FindRecord targetIdStr
+    SaveSelectorField Me.txtOther, otherCurrent, "other", otherCurrent
 End Sub
 
 Private Sub txtLaptopCount_LostFocus()

@@ -86,33 +86,3 @@ ErrorHandler:
     Set db = Nothing
 End Sub
 
-'++++++++++++
-
-Sub ClearLocalData()
-    Dim tblArr As Variant, tblName As String
-    Dim i As Long
-    
-    Debug.Print "CLEARING LOCAL DATA" & vbLf & "--------------------"
-    
-    tblArr = Array("localNorks", "localSelectors", "localTargets", "tempSchema", "tempGWSearchResults", "tempSSearchResults")
-    
-    'clear everything
-    For i = 0 To 5
-        tblName = tblArr(i)
-        ClearTableList tblName
-    Next
-    
-    Debug.Print "LOCAL DATA CLEARED"
-End Sub
-
-'+++++++++++++++++++++
-
-Sub PrintFieldNames(rs As DAO.Recordset)
-    Dim fld As DAO.Field
-    
-    Debug.Print "PRINT FIELD NAMES:"
-    For Each fld In rs.Fields
-        Debug.Print fld.Name
-    Next
-    
-End Sub

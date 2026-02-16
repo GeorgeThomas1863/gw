@@ -65,11 +65,8 @@ Sub RunUnrelatedImport(str As String, selectorTypeInput As String)
     For i = LBound(addArr) To UBound(addArr)
         addStr = Trim(addArr(i))
         If addStr <> "" And LCase(addStr) <> "null" Then
-            Debug.Print "SELECTOR TYPE INPUT: " & selectorTypeInput
-             
             'resets / recalcs each time
             selectorTypeStr = DetectSelectorType(addStr, Trim(selectorTypeInput))
-            Debug.Print "!!!SELECTOR TYPE DETECT RETURN: " & selectorTypeStr
             
             'handle wrong / null types
             If Trim(UCase(selectorTypeStr)) = "WRONG" Or Trim(UCase(selectorTypeStr)) = "NULL" Then
@@ -100,7 +97,6 @@ Sub RunUnrelatedImport(str As String, selectorTypeInput As String)
     End If
 
     openArgsStr = Trim(str) & "$$" & searchStr & "$$" & SStr
-    Debug.Print "OPEN ARGS STR: " & openArgsStr
 
     'display results
     DoCmd.OpenForm "frmResultsDisplay", acNormal, , , , , openArgsStr
@@ -145,7 +141,6 @@ Sub RunAddSchemaData(typeInput As String, colMax As Long)
     If addStr = "" Then ThrowError 1962, "ADD STR EMPTY IN RUN ADD SCHEMA DATA": Exit Sub
     
     'Debug.Print "COLMAX: " & colMax
-    Debug.Print "ADD STR: " & addStr
     
     typeStr = Trim(typeInput)
     
@@ -162,9 +157,6 @@ Sub RunAddSchemaData(typeInput As String, colMax As Long)
         addTargetsStr = "NULL"
         
         If rowStr <> "" Then
-            Debug.Print "ROW STR: " & rowStr
-            Debug.Print "TYPE STR: " & typeStr
-            
             addSelectorsStr = AddRelatedRowSelectors(rowStr, typeStr)
             addTargetsStr = AddRelatedRowTargets(rowStr, typeStr, addSelectorsStr)
             targetReturnStr = targetReturnStr & addTargetsStr & "!!"
@@ -190,7 +182,6 @@ Sub RunAddSchemaData(typeInput As String, colMax As Long)
     End If
     
     openArgsStr = addStr & "$$" & searchStr & "$$" & SStr
-    Debug.Print "OPEN ARGS STR: " & openArgsStr
 
     'display results
     DoCmd.OpenForm "frmResultsDisplay", acNormal, , , , , openArgsStr
@@ -309,12 +300,7 @@ Sub UpdateAddDataCounts(addStr As String, targetId As String)
         If Trim(rowStr) <> "" Then
             rowArr = Split(rowStr, "!!")
             targetIdStr = targetArr(i) 'same target for each row
-            
-'            For j = LBound(rowArr) To UBound(rowArr)
-'                inputItem = Trim(rowArr(j))
-'                UpdateSelectorsTargetId inputItem, targetIdStr
-'            Next
-            
+
             'update selectors count
             UpdateTargetsSelectorCountTbl targetIdStr
         End If

@@ -22,10 +22,6 @@ Sub RunSearch(str As String, searchTargetInput As String, delimInput As String)
     resGW = "!!"
     resS = "!!$$" 'for split in display
     
-    Debug.Print "++++++++++++"
-    Debug.Print "CLEAN SEARCH INPUT: " & searchStr & vbLf & "-----------------"
-    Debug.Print "CLEAN SEARCH TARGET: " & searchTarget & vbLf & "-----------------"
-    
     Select Case searchTarget
 
     Case "graywolfe"
@@ -41,7 +37,6 @@ Sub RunSearch(str As String, searchTargetInput As String, delimInput As String)
     End Select
     
     openArgsStr = searchStr & "$$" & resGW & "$$" & resS
-    Debug.Print "^^^^^" & vbLf & "OPEN ARGS STR FROM SEARCH: " & openArgsStr
 
     'display results
     DoCmd.OpenForm "frmResultsDisplay", acNormal, , , , , openArgsStr
@@ -109,9 +104,6 @@ Function SearchS(str As String) As String
         
     token = CheckToken(tokenInput)
     
-    Debug.Print "TOKEN: " & token
-    Debug.Print "INPUTSTR: " & str
-    
     splitStr = Replace(Trim(str), "+++", "!!")
 
     searchArr = Split(splitStr, "!!")
@@ -143,10 +135,8 @@ Function SearchS(str As String) As String
             
             'in mod2b S
             SStr = RunSBulkSearch(selectorCleanStr, token)
-            Debug.Print "S SEARCH STR: " & SStr
- 
+
             parseStr = ParseSSearch(SStr, searchStr)
-            Debug.Print "PARSE STR: " & parseStr
             
             hitCount = Val(parseStr)
             FillTempGWSHits selectorCleanStr, hitCount
