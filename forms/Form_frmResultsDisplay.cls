@@ -259,7 +259,7 @@ Public Sub ApplyFilterS()
     
     'drop down
     If Trim(LCase(SFilterStr)) <> "" And InStr(LCase(SFilterStr), "[display all ") = 0 Then
-        filterItem = "[selector] = '" & SFilterStr & "'"
+        filterItem = "[selector] = '" & SqlSafe(SFilterStr) & "'"
         filterStr = filterStr & filterItem & " AND "
     End If
     
@@ -391,7 +391,7 @@ Public Sub ApplyFilterGW()
     
     'drop down
     If Trim(LCase(gwFilterStr)) <> "" And InStr(LCase(gwFilterStr), "[display all ") = 0 Then
-        filterItem = "([targetName] = '" & gwFilterStr & "' OR [targetId] = '" & gwFilterStr & "')"
+        filterItem = "([targetName] = '" & SqlSafe(gwFilterStr) & "' OR [targetId] = '" & SqlSafe(gwFilterStr) & "')"
         filterStr = filterStr & filterItem & " AND "
     End If
     

@@ -121,12 +121,9 @@ End Sub
 
 'helper - get selector count for a target
 Private Function GetSelectorCountForTarget(targetIdStr As String) As Long
-    Dim db As DAO.Database, rs As DAO.Recordset
-    Dim strSQL As String
+    Dim rs As DAO.Recordset
 
-    Set db = CurrentDb
-    strSQL = "SELECT COUNT(*) AS cnt FROM [localSelectors] WHERE [targetId] = '" & targetIdStr & "'"
-    Set rs = db.OpenRecordset(strSQL, dbOpenSnapshot)
+    Set rs = OpenRS("SELECT COUNT(*) AS cnt FROM [localSelectors] WHERE [targetId] = ?", targetIdStr)
 
     If Not rs.EOF Then
         GetSelectorCountForTarget = Nz(rs!cnt, 0)

@@ -16,7 +16,37 @@ Option Explicit
     Public Declare Sub Sleep Lib "kernel32" (ByVal dwMilliseconds As Long)
 #End If
 
-'escapes single quotes for SQL string concatenation
+'parameterized SELECT — returns read-only recordset
+Function OpenRS(sql As String, ParamArray params() As Variant) As DAO.Recordset
+    Dim db As DAO.Database, qdf As DAO.QueryDef
+    Dim i As Long
+
+    Set db = CurrentDb
+    Set qdf = db.CreateQueryDef("", sql)
+
+    For i = LBound(params) To UBound(params)
+        qdf.Parameters(i) = params(i)
+    Next
+
+    Set OpenRS = qdf.OpenRecordset(dbOpenSnapshot)
+End Function
+
+'parameterized action query (UPDATE/DELETE/INSERT)
+Sub ExecSQL(sql As String, ParamArray params() As Variant)
+    Dim db As DAO.Database, qdf As DAO.QueryDef
+    Dim i As Long
+
+    Set db = CurrentDb
+    Set qdf = db.CreateQueryDef("", sql)
+
+    For i = LBound(params) To UBound(params)
+        qdf.Parameters(i) = params(i)
+    Next
+
+    qdf.Execute dbFailOnError
+End Sub
+
+'escapes single quotes for SQL string concatenation (only used for form filters)
 Function SqlSafe(str As String) As String
     SqlSafe = Replace(str, "'", "''")
 End Function
