@@ -210,7 +210,7 @@ Function AddRelatedRowSelectors(inputStr As String, typeStr As String) As String
         inputItem = Trim(inputArr(i))
         typeItem = Trim(typeArr(i))
         If inputItem <> "" And LCase(inputItem) <> "null" Then
-            addStr = FillLocalSelectors(inputItem, typeItem, "")
+            addStr = FillLocalSelectors(inputItem, typeItem, "", BuildDataSource("Default Import"))
             'Debug.Print "ADD STR: " & addStr
         
             'NOT in GW (selector NOT known)
@@ -267,7 +267,7 @@ Function AddRelatedRowTargets(inputStr As String, typeStr As String, addSelector
                 tId = Trim(targetArr(i))
                 For j = 0 To UBound(selectorArr)
                     If Trim(selectorArr(j)) <> "" And LCase(Trim(selectorArr(j))) <> "null" Then
-                        dupResult = FillLocalSelectors(Trim(selectorArr(j)), Trim(typeArr(j)), tId)
+                        dupResult = FillLocalSelectors(Trim(selectorArr(j)), Trim(typeArr(j)), tId, BuildDataSource("Bridge"))
                     End If
                 Next j
                 UpdateTargetsSelectorCountTbl tId

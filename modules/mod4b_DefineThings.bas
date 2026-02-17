@@ -435,8 +435,13 @@ Function StateMap(str As String) As String
     
     'otherwise fail
     StateMap = "FAIL"
-    
+
     'Debug.Print "STATE ARR: " & UBound(stateArr)
 
+End Function
+
+'builds descriptive dataSource stamp: "Method | user | MM/DD/YYYY HH:NN"
+Function BuildDataSource(method As String) As String
+    BuildDataSource = method & " | " & Trim(LCase(Environ("USERNAME"))) & " | " & Format(Now(), "MM/DD/YYYY HH:NN")
 End Function
 

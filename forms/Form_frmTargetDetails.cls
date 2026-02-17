@@ -155,7 +155,7 @@ Private Sub SaveSelectorField(ctl As Control, ByVal currentVal As String, ByVal 
 
     targetIdStr = Me.txtTargetId
 
-    UpdateTargetSelectors targetIdStr, inputStr, currentStr, selectorType
+    UpdateTargetSelectors targetIdStr, inputStr, currentStr, selectorType, BuildDataSource("Manual")
     UpdateTargetsSelectorCountTbl targetIdStr
     newCurrentVal = inputStr
 

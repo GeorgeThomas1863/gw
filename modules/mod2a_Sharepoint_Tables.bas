@@ -229,7 +229,7 @@ End Function
 
 '++++++++++++++++++++++++++++++++++++++++++++
 
-Function FillLocalSelectors(str As String, selectorType As String, Optional targetId As String = "") As String
+Function FillLocalSelectors(str As String, selectorType As String, Optional targetId As String = "", Optional dataSource As String = "") As String
     Dim db As DAO.Database, rs As DAO.Recordset, rsSearch As DAO.Recordset
     Dim inputStr As String, selectorCleanStr As String, selectorIdStr As String
 
@@ -272,8 +272,12 @@ Function FillLocalSelectors(str As String, selectorType As String, Optional targ
     rs!lastUpdatedBy = Trim(LCase(Environ("USERNAME")))
     rs!selectorType = Trim(LCase(selectorType))
     rs!Title = selectorIdStr 'sp req
-    rs!dataSource = "GrayWolfe Upload"
-    
+    If Trim(dataSource) <> "" Then
+        rs!dataSource = dataSource
+    Else
+        rs!dataSource = "GrayWolfe Upload"
+    End If
+
     If Trim(UCase(targetId)) <> "NULL" And Trim(targetId) <> "" Then rs!targetId = targetId
     rs.Update
     rs.Close
@@ -808,7 +812,7 @@ Sub UpdateTargetStatsForm(targetId As String, inputItem As String, fieldItem As 
 End Sub
 
 'for Form UI
-Sub UpdateTargetSelectors(targetId As String, inputItem As String, currentItem As String, selectorType As String)
+Sub UpdateTargetSelectors(targetId As String, inputItem As String, currentItem As String, selectorType As String, Optional dataSource As String = "")
     Dim arr() As String, itemStr As String
     Dim targetIdStr As String, inputStr As String, selectorTypeStr As String
     Dim currentStr As String, deleteStr As String, addStr As String
@@ -841,7 +845,7 @@ Sub UpdateTargetSelectors(targetId As String, inputItem As String, currentItem A
         For i = LBound(arr) To UBound(arr)
             itemStr = arr(i)
 
-            FillLocalSelectors itemStr, selectorTypeStr, targetIdStr
+            FillLocalSelectors itemStr, selectorTypeStr, targetIdStr, dataSource
         Next
     End If
 
@@ -999,6 +1003,29 @@ Sub DeleteTempFields(tblName As String)
         End If
     Next
 
+End Sub
+
+Sub ExportBackupCSV()
+    Dim fd As FileDialog
+    Dim folderPath As String, timestamp As String, filePath As String
+    Dim tblArr As Variant, tblName As String
+    Dim i As Long
+
+    Set fd = Application.FileDialog(msoFileDialogFolderPicker)
+    fd.Title = "Select Backup Folder"
+    If fd.Show = 0 Then Exit Sub
+    folderPath = fd.SelectedItems(1)
+
+    timestamp = Format(Now(), "YYYYMMDD_HHNNSS")
+    tblArr = Array("localNorks", "localSelectors", "localTargets")
+
+    For i = LBound(tblArr) To UBound(tblArr)
+        tblName = tblArr(i)
+        filePath = folderPath & "\" & tblName & "_" & timestamp & ".csv"
+        DoCmd.TransferText acExportDelim, , tblName, filePath, True
+    Next
+
+    MsgBox "Exported " & UBound(tblArr) + 1 & " tables to:" & vbLf & folderPath, vbInformation, "Backup Complete"
 End Sub
 
 ''''''''''''''''''''''
