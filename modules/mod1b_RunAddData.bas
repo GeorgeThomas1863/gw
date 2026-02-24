@@ -153,7 +153,7 @@ Sub RunAddSchemaData(typeInput As String, colMax As Long)
         rowInputStr = ""
         For c = 1 To colMax
             value = Nz(rs.Fields("ColumnStr" & c).Value, "")
-            If value <> "" And LCase(value) <> "null" Then
+            If value <> "" And LCase(value) <> "null" And LCase(typeArr(c - 1)) <> "null" Then
                 rowInputStr = rowInputStr & value & "!!"
             End If
         Next c
@@ -182,7 +182,7 @@ Sub RunAddSchemaData(typeInput As String, colMax As Long)
         For c = 1 To colMax
             value = Nz(rs.Fields("ColumnStr" & c).Value, "")
             typeItem = Trim(typeArr(c - 1))
-            If value <> "" And LCase(value) <> "null" And LCase(typeItem) <> "null" Then
+            If value <> "" And LCase(value) <> "null" And typeItem <> "" And LCase(typeItem) <> "null" Then
                 rowStr = rowStr & value & "!!"
                 result = FillLocalSelectors(value, typeItem, "", BuildDataSource("Default Import"))
                 If InStr(UCase(result), "SELECTOR ALREADY KNOWN") = 0 Then
@@ -222,7 +222,7 @@ Sub RunAddSchemaData(typeInput As String, colMax As Long)
                         For c = 1 To colMax
                             value = Nz(rs.Fields("ColumnStr" & c).Value, "")
                             typeItem = Trim(typeArr(c - 1))
-                            If value <> "" And LCase(value) <> "null" And LCase(typeItem) <> "null" Then
+                            If value <> "" And LCase(value) <> "null" And typeItem <> "" And LCase(typeItem) <> "null" Then
                                 FillLocalSelectors value, typeItem, Trim(targetArr(tIdx)), BuildDataSource("Bridge")
                             End If
                         Next c
