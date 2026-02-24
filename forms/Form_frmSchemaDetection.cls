@@ -96,15 +96,16 @@ End Sub
 Private Function BuildTypeStr(colMax As Long) As String
     Dim itemStr As String, returnStr As String
     Dim i As Long
-    
+
     returnStr = ""
     For i = 1 To colMax
-        itemStr = Trim(Me.Controls("cboColumn" & i).Value)
-        
-        'normalize selector type from combo box
-        If itemStr <> "" Then returnStr = returnStr & CleanSelectorInput(itemStr) & "!!"
+        itemStr = Trim(Nz(Me.Controls("cboColumn" & i).Value, ""))
+        If itemStr = "" Or LCase(itemStr) = "null" Then
+            returnStr = returnStr & "null" & "!!"
+        Else
+            returnStr = returnStr & CleanSelectorInput(itemStr) & "!!"
+        End If
     Next
-    
-    'trailing delim
-    BuildTypeStr = Trim(Left(returnStr, Len(returnStr) - 2))
+
+    If Len(returnStr) > 2 Then BuildTypeStr = Left(returnStr, Len(returnStr) - 2)
 End Function

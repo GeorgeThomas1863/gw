@@ -383,8 +383,7 @@ Sub FillTempGWSearchResults(rsInput As DAO.Recordset, Optional searchStr As Stri
             rs!inGrayWolfe = "YES"
             'rs!addedToGrayWolfe = "N/A"
             rs!targetName = targetNameStr
-            rs!targetId = targetIdStr
-                       
+
             rs!dateCreated = rsInput!dateCreated
             rs!createdBy = rsInput!createdBy
             rs!lastUpdated = rsInput!lastUpdated
@@ -591,48 +590,6 @@ Function BuildLocalFieldStr(tblName As String) As String
     BuildLocalFieldStr = Trim(Left(returnStr, Len(returnStr) - 2))
 End Function
 
-
-
-Function BuildAddStr(colMax As Long) As String
-    Dim db As DAO.Database, rs As DAO.Recordset
-    Dim strSQL As String, returnStr As String
-    Dim itemStr As String, colStr As String, rowStr As String
-    Dim recordCount As Long, i As Long, c As Long
-    
-    Set db = CurrentDb
-    
-    strSQL = "SELECT * FROM [tempSchema]"
-    
-    Set rs = db.OpenRecordset(strSQL, dbOpenSnapshot)
-    
-    If rs.EOF Then Exit Function
-    
-    rs.MoveLast
-    rs.MoveFirst
-    
-    returnStr = ""
-    For i = 1 To rs.recordCount
-        rowStr = ""
-        For c = 1 To colMax
-            colStr = "ColumnStr" & c
-            'Debug.Print "COL STR: " & colStr
-            itemStr = Nz(rs.Fields(colStr), "")
-            If Trim(itemStr) <> "" Then
-                rowStr = rowStr & itemStr & "!!"
-            End If
-        Next
-        If rowStr <> "" Then
-            rowStr = Trim(Left(rowStr, Len(rowStr) - 2))
-            returnStr = returnStr & rowStr & "+++"
-        End If
-        
-        rs.MoveNext
-     Next
-     
-     If returnStr = "" Then Exit Function
-     
-     BuildAddStr = Trim(Left(returnStr, Len(returnStr) - 3))
-End Function
 
 
 
