@@ -18,8 +18,11 @@ Option Explicit
 
 'parameterized SELECT — returns read-only recordset
 Function OpenRS(sql As String, ParamArray params() As Variant) As DAO.Recordset
+    On Error GoTo ErrHandler
     Dim db As DAO.Database, qdf As DAO.QueryDef
     Dim i As Long
+
+    Debug.Print "OpenRS >> " & sql
 
     Set db = CurrentDb
     Set qdf = db.CreateQueryDef("", sql)
@@ -29,12 +32,21 @@ Function OpenRS(sql As String, ParamArray params() As Variant) As DAO.Recordset
     Next
 
     Set OpenRS = qdf.OpenRecordset(dbOpenSnapshot)
+    Exit Function
+
+ErrHandler:
+    Debug.Print "OpenRS FAILED | Err " & Err.Number & ": " & Err.Description
+    Debug.Print "SQL was: " & sql
+    Err.Raise Err.Number, Err.Source, Err.Description
 End Function
 
 'parameterized action query (UPDATE/DELETE/INSERT)
 Sub ExecSQL(sql As String, ParamArray params() As Variant)
+    On Error GoTo ErrHandler
     Dim db As DAO.Database, qdf As DAO.QueryDef
     Dim i As Long
+
+    Debug.Print "ExecSQL >> " & sql
 
     Set db = CurrentDb
     Set qdf = db.CreateQueryDef("", sql)
@@ -44,6 +56,12 @@ Sub ExecSQL(sql As String, ParamArray params() As Variant)
     Next
 
     qdf.Execute dbFailOnError
+    Exit Sub
+
+ErrHandler:
+    Debug.Print "ExecSQL FAILED | Err " & Err.Number & ": " & Err.Description
+    Debug.Print "SQL was: " & sql
+    Err.Raise Err.Number, Err.Source, Err.Description
 End Sub
 
 'escapes single quotes for SQL string concatenation (only used for form filters)
