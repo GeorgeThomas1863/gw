@@ -7,13 +7,17 @@ Option Explicit
 #End If
 
 ' Maximum age in seconds before a heartbeat is considered stale
-Private Const HEARTBEAT_MAX_AGE As Double = 5#
+Private Const HEARTBEAT_MAX_AGE      As Double = 5#
 ' Seconds to wait for the kernel to start before giving up
-Private Const LAUNCH_WAIT_SEC   As Long   = 15
+Private Const LAUNCH_WAIT_SEC        As Long   = 15
 ' Milliseconds between polling checks
-Private Const POLL_MS           As Long   = 300
+Private Const POLL_MS                As Long   = 300
 ' Default HTTP timeout in seconds passed to Python requests
-Private Const DEFAULT_TIMEOUT   As Long   = 30
+Private Const DEFAULT_TIMEOUT        As Long   = 30
+' Network path to the Anaconda installer — update this before use
+Private Const ANACONDA_INSTALLER_SRC As String = "\\YOUR_NETWORK_PATH\Anaconda3-installer.exe"
+' Port the Jupyter notebook server listens on
+Private Const JUPYTER_PORT           As Long   = 8888
 
 ' ============================================================
 ' Path helpers
@@ -39,19 +43,32 @@ Private Function HeartbeatPath() As String
     HeartbeatPath = BridgeDir() & "\heartbeat.txt"
 End Function
 
+' Returns the Anaconda installation directory for this user.
+' Falls back to C:\anaconda3 if the username contains spaces, since the
+' Anaconda (NSIS) silent installer /D= flag cannot handle paths with spaces.
+Private Function AnacondaDir() As String
+    Dim strUser As String
+    strUser = Environ("USERNAME")
+    If InStr(strUser, " ") > 0 Then
+        AnacondaDir = "C:\anaconda3"
+    Else
+        AnacondaDir = "C:\Users\" & strUser & "\anaconda3"
+    End If
+End Function
+
 ' Returns the expected path to the Anaconda jupyter.exe for this user
 Private Function JupyterExePath() As String
-    JupyterExePath = "C:\Users\" & Environ("USERNAME") & "\anaconda3\Scripts\jupyter.exe"
+    JupyterExePath = AnacondaDir() & "\Scripts\jupyter.exe"
+End Function
+
+' Returns the base URL for the local Jupyter notebook server API
+Private Function JupyterApiBase() As String
+    JupyterApiBase = "http://localhost:" & JUPYTER_PORT
 End Function
 
 ' Returns the path where the IPython startup script should be installed
 Private Function StartupScriptPath() As String
     StartupScriptPath = Environ("USERPROFILE") & "\.ipython\profile_default\startup\00_bridge.py"
-End Function
-
-' Returns the IPython startup directory path
-Private Function IpythonStartupDir() As String
-    IpythonStartupDir = Environ("USERPROFILE") & "\.ipython\profile_default\startup"
 End Function
 
 ' ============================================================
@@ -62,6 +79,33 @@ End Function
 Private Function GetFSO() As Object
     Set GetFSO = CreateObject("Scripting.FileSystemObject")
 End Function
+
+' ============================================================
+' HTTP helpers (localhost only — no Windows auth required)
+' ============================================================
+
+' Issues a synchronous GET and returns the HTTP status code, or 0 on connection error
+Private Function HttpGetStatus(sUrl As String) As Long
+    Dim http As Object
+    On Error Resume Next
+    Set http = CreateObject("MSXML2.XMLHTTP.6.0")
+    On Error GoTo 0
+    If http Is Nothing Then Exit Function  ' MSXML not available; return 0 = not up
+    On Error Resume Next
+    http.Open "GET", sUrl, False
+    http.Send
+    HttpGetStatus = http.Status
+    On Error GoTo 0
+End Function
+
+' Issues a synchronous POST with a JSON body; return value is ignored
+Private Sub HttpPost(sUrl As String, sBody As String)
+    Dim http As Object
+    Set http = CreateObject("MSXML2.XMLHTTP.6.0")
+    http.Open "POST", sUrl, False
+    http.setRequestHeader "Content-Type", "application/json"
+    http.Send sBody
+End Sub
 
 ' ============================================================
 ' Utility helpers
@@ -193,8 +237,10 @@ Private Sub WriteStartupScript()
               "                except Exception as e:" & vbLf & _
               "                    status, body = -1, str(e)" & vbLf & _
               "" & vbLf & _
-              "                with open(RESP_FILE, ""w"") as f:" & vbLf & _
+              "                _tmp = RESP_FILE + "".tmp""" & vbLf & _
+              "                with open(_tmp, ""w"") as f:" & vbLf & _
               "                    f.write(str(status) + ""\n"" + body)" & vbLf & _
+              "                os.replace(_tmp, RESP_FILE)" & vbLf & _
               "" & vbLf & _
               "        except Exception:" & vbLf & _
               "            pass" & vbLf & _
@@ -215,15 +261,41 @@ End Sub
 ' Kernel lifecycle
 ' ============================================================
 
-' Launches a Jupyter kernel in a hidden window via Shell
-Private Sub LaunchJupyterKernel()
-    Shell """" & JupyterExePath() & """ kernel", vbHide
+' Launches the Jupyter notebook server in a hidden window with no browser and no token auth
+Private Sub LaunchJupyterServer()
+    Shell """" & JupyterExePath() & """ notebook --no-browser --port=" & JUPYTER_PORT & _
+          " --NotebookApp.token= --NotebookApp.password=" & _
+          " --ServerApp.token= --ServerApp.password=", vbHide
+End Sub
+
+' Returns True if the Jupyter notebook server is responding on the configured port
+Private Function IsJupyterServerUp() As Boolean
+    IsJupyterServerUp = (HttpGetStatus(JupyterApiBase() & "/api") = 200)
+End Function
+
+' Polls IsJupyterServerUp for up to lMaxSec seconds; returns True if server comes up in time
+Private Function WaitForServerUp(lMaxSec As Long) As Boolean
+    If lMaxSec <= 0 Then Exit Function
+    Dim i As Long
+    For i = 1 To (lMaxSec * 1000) \ POLL_MS
+        DoEvents
+        If IsJupyterServerUp() Then
+            WaitForServerUp = True
+            Exit Function
+        End If
+        Sleep POLL_MS
+    Next i
+End Function
+
+' Creates a new Jupyter kernel via the REST API, which triggers the IPython startup script
+Private Sub CreateJupyterKernel()
+    HttpPost JupyterApiBase() & "/api/kernels", "{}"
 End Sub
 
 ' Polls IsBridgeAlive up to lMaxSec seconds; returns True if the bridge comes alive in time
 Private Function WaitForHeartbeat(lMaxSec As Long) As Boolean
+    If lMaxSec <= 0 Then Exit Function
     Dim i As Long
-
     For i = 1 To (lMaxSec * 1000) \ POLL_MS
         DoEvents
         If IsBridgeAlive() Then
@@ -234,9 +306,10 @@ Private Function WaitForHeartbeat(lMaxSec As Long) As Boolean
     Next i
 End Function
 
-' Ensures the Python bridge is running, installing and launching it if needed
+' Ensures the Python bridge is running, installing Anaconda and launching Jupyter if needed
 Private Sub EnsureBridgeReady()
     Dim fso As Object
+    Dim wsh As Object
 
     ' Fast path: bridge is already running
     If IsBridgeAlive() Then Exit Sub
@@ -244,11 +317,22 @@ Private Sub EnsureBridgeReady()
     ' Slow path: set everything up
     Set fso = GetFSO()
 
-    ' 1. Verify Jupyter is installed
+    ' 1. Install Anaconda if Jupyter is not present
     If Not fso.FileExists(JupyterExePath()) Then
-        Err.Raise vbObjectError + 1001, "EnsureBridgeReady", _
-            "Jupyter not found at: " & JupyterExePath() & _
-            ". Verify Anaconda is installed for this user."
+        If Not fso.FileExists(ANACONDA_INSTALLER_SRC) Then
+            Err.Raise vbObjectError + 1001, "EnsureBridgeReady", _
+                "Anaconda is not installed and the installer was not found at: " & _
+                ANACONDA_INSTALLER_SRC
+        End If
+        MsgBox "Anaconda is not installed. Installing now — this may take 5-15 minutes." & _
+               vbCrLf & "Please do not close this application.", vbInformation, "Installing Anaconda"
+        Set wsh = CreateObject("WScript.Shell")
+        wsh.Run """" & ANACONDA_INSTALLER_SRC & """ /S /D=" & AnacondaDir(), 0, True
+        If Not fso.FileExists(JupyterExePath()) Then
+            Err.Raise vbObjectError + 1002, "EnsureBridgeReady", _
+                "Anaconda installation completed but Jupyter was not found at: " & _
+                JupyterExePath() & ". Verify the installer at: " & ANACONDA_INSTALLER_SRC
+        End If
     End If
 
     ' 2. Write startup script if missing
@@ -261,14 +345,26 @@ Private Sub EnsureBridgeReady()
         fso.CreateFolder BridgeDir()
     End If
 
-    ' 4. Launch the kernel
-    LaunchJupyterKernel
+    ' 4. Launch Jupyter notebook server if not already running
+    If Not IsJupyterServerUp() Then
+        LaunchJupyterServer
+        If Not WaitForServerUp(LAUNCH_WAIT_SEC) Then
+            Err.Raise vbObjectError + 1003, "EnsureBridgeReady", _
+                "Jupyter notebook server did not respond within " & LAUNCH_WAIT_SEC & _
+                " seconds. Port " & JUPYTER_PORT & " may be in use by another process."
+        End If
+    End If
 
-    ' 5. Wait for heartbeat
+    ' 5. Create a kernel — triggers the IPython startup script and polling thread
+    CreateJupyterKernel
+
+    ' 6. Wait for the polling thread to prove itself via heartbeat
     If Not WaitForHeartbeat(LAUNCH_WAIT_SEC) Then
-        Err.Raise vbObjectError + 1003, "EnsureBridgeReady", _
-            "Jupyter kernel launched but did not start polling within " & _
-            LAUNCH_WAIT_SEC & " seconds. Check Anaconda installation."
+        Err.Raise vbObjectError + 1004, "EnsureBridgeReady", _
+            "Jupyter kernel was created but the bridge did not start polling within " & _
+            LAUNCH_WAIT_SEC & " seconds. Verify: (1) the startup script exists at " & _
+            StartupScriptPath() & ", and (2) the ""requests"" package is installed " & _
+            "in the active Anaconda environment."
     End If
 End Sub
 
@@ -290,7 +386,7 @@ Private Sub WriteCmdFile(sMethod As String, sUrl As String, _
     If fso.FileExists(RespFilePath()) Then fso.DeleteFile RespFilePath()
 
     strJson = "{" & _
-              """method"":" & """" & UCase(sMethod) & """," & _
+              """method"":" & """" & EscapeJsonStr(UCase(sMethod)) & """," & _
               """url"":" & """" & EscapeJsonStr(sUrl) & """," & _
               """headers"":" & sHeadersJson & "," & _
               """params"":" & sParamsJson & "," & _
@@ -329,11 +425,11 @@ Private Function WaitForResponse(lTimeoutSec As Long) As String
 
             ' Evaluate result
             If lStatus < 0 Then
-                Err.Raise vbObjectError + 1004, "BridgeCall", _
+                Err.Raise vbObjectError + 1005, "BridgeCall", _
                     "Bridge error: " & strBody
             End If
             If lStatus >= 400 Then
-                Err.Raise vbObjectError + 1005, "BridgeCall", _
+                Err.Raise vbObjectError + 1006, "BridgeCall", _
                     "HTTP " & lStatus & ": " & strBody
             End If
 
@@ -343,7 +439,7 @@ Private Function WaitForResponse(lTimeoutSec As Long) As String
         Sleep POLL_MS
     Next i
 
-    Err.Raise vbObjectError + 1006, "BridgeCall", _
+    Err.Raise vbObjectError + 1007, "BridgeCall", _
         "Timeout: no response received after " & lTimeoutSec & " seconds"
 End Function
 
