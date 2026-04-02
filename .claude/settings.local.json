@@ -2,7 +2,15 @@
   "permissions": {
     "allow": [
       "Bash(grep:*)",
-      "WebSearch"
+      "WebSearch",
+      "Bash(wc:*)",
+      "Bash(mkdir -p old_vba core data ui utils admin tests)",
+      "Bash(mv modules/* old_vba/)",
+      "Bash(mv forms/* old_vba/)",
+      "Bash(touch:*)",
+      "Bash(.venv/Scripts/python:*)",
+      "Bash(python -m pytest tests/test_type_engine.py -v)",
+      "Bash(python -m pytest tests/test_targets.py -v)"
     ]
   }
 }
