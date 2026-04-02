@@ -243,8 +243,7 @@ def run_default_import(
             except GWError as exc:
                 if exc.code == ERR_SELECTOR_DUPLICATE:
                     logger.warning("run_default_import: duplicate skipped — %s", exc)
-                    # Still count the value for target resolution
-                    row_values.append(value)
+                    # row_values already has this value (appended above); do not append again
                 else:
                     raise
 
@@ -281,14 +280,19 @@ def _link_selectors_to_target(
     target_id: str,
 ) -> None:
     """UPDATE selectors SET target_id = ? WHERE selector_clean IN (...)
-    for all cleans that currently have no target_id assigned.
+    AND target_id IS NULL — only assigns selectors that have no existing target.
+
+    Processes in chunks of 500 to stay under SQLite's 999-variable limit.
     """
     if not selector_cleans:
         return
 
-    placeholders = ",".join("?" * len(selector_cleans))
-    conn.execute(
-        f"UPDATE selectors SET target_id = ? WHERE selector_clean IN ({placeholders})",
-        [target_id, *selector_cleans],
-    )
+    chunk_size = 500
+    for start in range(0, len(selector_cleans), chunk_size):
+        chunk = selector_cleans[start : start + chunk_size]
+        placeholders = ",".join("?" * len(chunk))
+        conn.execute(
+            f"UPDATE selectors SET target_id = ? WHERE selector_clean IN ({placeholders}) AND target_id IS NULL",
+            [target_id, *chunk],
+        )
     conn.commit()

@@ -10,7 +10,10 @@
       "Bash(touch:*)",
       "Bash(.venv/Scripts/python:*)",
       "Bash(python -m pytest tests/test_type_engine.py -v)",
-      "Bash(python -m pytest tests/test_targets.py -v)"
+      "Bash(python -m pytest tests/test_targets.py -v)",
+      "Bash(python -m pytest tests/ -v --tb=short)",
+      "Bash(python -m pytest tests/ -x -q)",
+      "Bash(python -m pytest tests/ -q)"
     ]
   }
 }

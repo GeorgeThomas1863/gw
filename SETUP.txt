@@ -1,0 +1,338 @@
+GRAYWOLFE PYTHON — SETUP & DEPLOYMENT GUIDE
+===========================================
+Last updated: April 2026
+
+
+WHO IS THIS FOR
+---------------
+This guide is for you (the admin). It walks through:
+  1. Getting it running on YOUR machine for the first time
+  2. Setting up the shared drive folder
+  3. Distributing it to other users
+  4. Using the admin merge tool
+  5. Running the tests (optional, for development)
+
+
+===========================================================================
+STEP 1 — PREREQUISITES
+===========================================================================
+
+You need Anaconda installed. If you already use it for other Python work,
+you're fine. No additional packages are required — everything used is already
+included in Anaconda 2023 and newer.
+
+To verify Anaconda is installed, open a Command Prompt and run:
+    conda --version
+
+If that returns a version number (e.g. "conda 23.7.4"), you're good.
+
+You also need to know your Anaconda Python path. It usually looks like:
+    C:\Users\YourName\anaconda3\python.exe
+    or
+    C:\ProgramData\Anaconda3\python.exe
+
+
+===========================================================================
+STEP 2 — CONFIGURE THE SHARED DRIVE PATH
+===========================================================================
+
+Before running anything, you need to tell the app where your shared drive
+folder is. This is the only thing you need to edit.
+
+Open:
+    config.py   (in the root of this project)
+
+Find line 6:
+    GW_SHARED_PATH: Path = Path(r"\\server\graywolfe")
+
+Replace "\\server\graywolfe" with the ACTUAL UNC path to your shared folder.
+Example:
+    GW_SHARED_PATH: Path = Path(r"\\fileserver01\departments\investigations\graywolfe")
+
+Save the file.
+
+That one change controls everything:
+  - master.db lives at:          {GW_SHARED_PATH}\master.db
+  - Each user's DB lives at:     {GW_SHARED_PATH}\users\{username}.db
+  - Log files go to:             {GW_SHARED_PATH}\logs\
+
+IMPORTANT: The shared folder must be accessible by all users who will run
+the app. Make sure everyone has read/write permissions to it.
+
+
+===========================================================================
+STEP 3 — CREATE THE SHARED FOLDER STRUCTURE
+===========================================================================
+
+On the shared drive, create this folder structure manually:
+
+    \\your-server\graywolfe\           <-- the root (GW_SHARED_PATH)
+        users\                         <-- the app creates user .db files here
+        logs\                          <-- log files go here
+
+You only need to create these folders once. The app will create files inside
+them automatically when it runs.
+
+To create them, open File Explorer, navigate to your shared drive, and
+create the folders. Or in a Command Prompt (replacing the path):
+    mkdir "\\fileserver01\departments\investigations\graywolfe\users"
+    mkdir "\\fileserver01\departments\investigations\graywolfe\logs"
+
+
+===========================================================================
+STEP 4 — RUN THE APP FOR THE FIRST TIME (YOUR MACHINE)
+===========================================================================
+
+Open a Command Prompt. Navigate to this project folder:
+    cd C:\Users\computer\Desktop\ALL4\code\gw
+
+Run:
+    python main.py
+
+If Anaconda isn't your default Python, use the full path:
+    C:\Users\YourName\anaconda3\python.exe main.py
+
+What happens on first launch:
+  - The app connects to the shared drive
+  - It creates YOUR user database at: {GW_SHARED_PATH}\users\{your-windows-username}.db
+  - The GrayWolfe window opens with Search and Add Data tabs
+  - Status bar at the bottom shows your Windows username
+
+If you see an error about the shared drive being unreachable, the app falls
+back to a local "db\" folder inside the project directory. This is fine for
+testing, but fix the shared drive path before distributing to users.
+
+
+===========================================================================
+STEP 5 — UPDATE THE S API URLS
+===========================================================================
+
+The S API URLs in config.py currently use placeholder values:
+    https://S-api.Fnet.F/...
+
+You need to replace these with the real internal URLs. Open config.py and
+update:
+
+    S_SEARCH_URL         -- the main search endpoint
+    S_VALIDATE_URLS      -- the 4 validation endpoints (used to test the token)
+    S_LINK_TEMPLATE      -- the URL template for opening a result in the browser
+                           (contains {unique_id} placeholder — keep that part)
+
+These values come from the existing VBA app. Look in mod2b_S.bas and
+mod4a_APICalls.bas for the real URL strings. They are hardcoded in those
+files as string constants near the top.
+
+
+===========================================================================
+STEP 6 — TEST CORE FUNCTIONALITY (YOUR MACHINE)
+===========================================================================
+
+With the app running, test each feature in order:
+
+--- Add Data ---
+1. Click the "Add Data" tab
+2. Paste a few email addresses, one per line, into the input box
+3. Leave Mode as "Default Import", Delimiter as "Auto"
+4. Click "Add Data"
+5. A dialog will appear showing "Column 1: email (XX% confident)"
+6. Click "Submit"
+7. You should see "X selector(s) imported successfully"
+
+--- Search ---
+1. Click the "Search" tab
+2. Type one of the email addresses you just added
+3. Leave Search as "GW + S" for now (or switch to "GW Only" to skip S)
+4. If testing GW Only: click Search — results window opens, GW tab shows the match
+5. Double-click a result row to open the Target Details window
+
+--- Target Details ---
+1. In the Target Details window, you can set a Target Name and Case Number
+2. Click Save to commit the change
+3. Click the Merge Target button to test merging (requires a second target)
+
+--- Pull from Master ---
+1. Click "Pull from Master" in the status bar
+2. If master.db doesn't exist yet, the sync will complete with 0 records added
+   (this is fine — master.db gets populated via the admin merge tool)
+
+
+===========================================================================
+STEP 7 — DISTRIBUTE TO OTHER USERS
+===========================================================================
+
+Each user needs:
+
+A) A copy of this entire project folder. The simplest approach is to put the
+   project folder on the shared drive itself, so everyone runs from the same
+   copy:
+       \\your-server\graywolfe\app\    <-- put the Python code here
+       \\your-server\graywolfe\users\  <-- user databases (auto-created)
+       \\your-server\graywolfe\logs\   <-- log files (auto-created)
+
+   Then each user launches the app with:
+       python \\your-server\graywolfe\app\main.py
+
+B) Anaconda installed on their machine. They do NOT need to install any
+   additional packages — Anaconda includes everything.
+
+C) Access to the shared drive (read/write permissions).
+
+How the app identifies users:
+  - It reads the Windows environment variable USERNAME automatically
+  - Each user's data is stored in {GW_SHARED_PATH}\users\{username}.db
+  - No login screen, no config file — it just uses their Windows login name
+
+
+OPTIONAL — Create a Desktop Shortcut for Users
+-----------------------------------------------
+Instead of having users type a command, create a .bat file they can
+double-click:
+
+    Create a file called "GrayWolfe.bat" containing:
+        @echo off
+        "C:\ProgramData\Anaconda3\python.exe" "\\your-server\graywolfe\app\main.py"
+
+    Adjust the python.exe path to match where Anaconda is installed on
+    the user's machine. If Anaconda is installed per-user (not system-wide),
+    the path is usually:
+        C:\Users\{username}\anaconda3\python.exe
+
+    You can put %USERNAME% in the path if Anaconda is always in the same
+    location relative to each user's profile.
+
+
+===========================================================================
+STEP 8 — THE ADMIN MERGE TOOL
+===========================================================================
+
+The merge tool is for YOU (admin) only. It takes a user's .db file and
+merges their data into master.db.
+
+Basic usage — run from the project root in a Command Prompt:
+
+    python admin\merge_user_db.py \\server\graywolfe\users\alice.db
+
+This will:
+  - Insert any records in alice.db that are NOT in master.db
+  - Skip records that already match (same ID, same last_updated timestamp)
+  - FLAG records where alice.db and master.db have the same ID but different
+    timestamps — these are CONFLICTS and are NOT written to master
+
+The tool always prints a summary:
+    Merge complete:
+      Inserted: {'selectors': 12, 'targets': 3, 'norks': 0}
+      Conflicts: 0
+
+Conflicts are written to a log file in {GW_SHARED_PATH}\logs\ named:
+    merge_conflicts_YYYYMMDD_HHMMSS.log
+
+You can do a dry run (no changes made, just reports what would happen):
+    python admin\merge_user_db.py \\server\graywolfe\users\alice.db --dry-run
+
+To use a different master DB (e.g. for testing):
+    python admin\merge_user_db.py alice.db --master-db C:\temp\test_master.db
+
+WORKFLOW RECOMMENDATION:
+  - Ask users to notify you when they've added significant data
+  - Run the merge tool for each user's .db
+  - Review any conflict log files manually
+  - After merging all users, their next "Pull from Master" will bring
+    everyone's data to all users
+
+
+===========================================================================
+STEP 9 — RUNNING TESTS (OPTIONAL — DEVELOPMENT ONLY)
+===========================================================================
+
+Tests are for development and verification. They do NOT need to be run by
+end users. If you want to verify the code is working correctly after making
+changes:
+
+    cd C:\Users\computer\Desktop\ALL4\code\gw
+    python -m pytest tests\ -q
+
+Currently: 251 tests, all passing.
+
+What the tests cover:
+  - All 11 selector type detectors and cleaners (email, phone, IP, etc.)
+  - Database operations (schema creation, ID generation, CRUD)
+  - Target merging and selector bridging logic
+  - Import workflows (default and unrelated)
+  - Search logic
+  - S API client (mocked — no real network calls)
+  - Master/local sync
+  - Admin merge tool
+
+
+===========================================================================
+TROUBLESHOOTING
+===========================================================================
+
+PROBLEM: App opens but status bar shows a username that isn't right
+SOLUTION: The app reads the Windows USERNAME environment variable. In a
+Command Prompt, run: echo %USERNAME% to see what it resolves to on that
+machine.
+
+PROBLEM: "Shared drive unreachable" warning in logs / app falls back to local db\
+SOLUTION: The UNC path in config.py is wrong or the shared drive isn't
+mapped/accessible. Verify you can navigate to the path in File Explorer.
+Also check that the "users" subfolder exists on the shared drive.
+
+PROBLEM: S API search returns "S API authentication failed"
+SOLUTION: The Bearer token entered in the Search tab is wrong or expired.
+Re-copy it from the browser. Also verify the S API URLs in config.py
+match the real internal endpoints.
+
+PROBLEM: "Import Error" when adding data
+SOLUTION: Check that the data you're pasting isn't empty after trimming.
+If using Unrelated Import, make sure the type override is set correctly.
+
+PROBLEM: App crashes on launch with "No module named tkinter"
+SOLUTION: Your Python install doesn't include tkinter. This shouldn't
+happen with Anaconda, but if it does, run:
+    conda install tk
+from an Anaconda Prompt.
+
+PROBLEM: Running python main.py does nothing / wrong Python version
+SOLUTION: Make sure you're using Anaconda's Python, not a system Python.
+Run: python --version
+It should say Python 3.x. If it says 2.x, use "python3" instead, or
+use the full Anaconda path explicitly.
+
+
+===========================================================================
+FILE STRUCTURE REFERENCE
+===========================================================================
+
+Project root (this folder):
+    main.py             -- Launch this to start the app
+    config.py           -- ALL configuration: paths, URLs, constants (EDIT THIS)
+    requirements.txt    -- Package list (all included in Anaconda 2023)
+
+    core\               -- Business logic
+        type_engine.py  -- Selector type detection and cleaning
+        search.py       -- GW and S search orchestration
+        import_data.py  -- Data import workflows
+        targets.py      -- Target create/merge logic
+
+    data\               -- Database and external API
+        database.py     -- SQLite connection, schema, CRUD helpers
+        s_api.py        -- S API client
+        sync.py         -- Pull-from-master sync
+
+    ui\                 -- All windows and dialogs
+        app.py          -- Main window (Search + Add Data tabs)
+        results_window.py        -- Search results display
+        schema_detection.py      -- Column type confirmation dialog
+        target_details.py        -- Target editor
+        merge_targets.py         -- Merge two targets dialog
+
+    utils\              -- Shared utilities
+        errors.py       -- GWError exception and error codes
+        logger.py       -- Logging setup
+
+    admin\
+        merge_user_db.py -- Admin CLI merge tool
+
+    old_vba\            -- Original VBA source (archived, do not modify)
+    tests\              -- Development tests (not for production use)

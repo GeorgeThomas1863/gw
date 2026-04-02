@@ -46,8 +46,6 @@ class MergeTargetsDialog(tk.Toplevel):
             self._keep_id_var.set(keep_id)
             self._lookup_target("keep")
 
-        self.wait_window(self)
-
     # ------------------------------------------------------------------
     # UI construction
     # ------------------------------------------------------------------

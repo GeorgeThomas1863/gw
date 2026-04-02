@@ -5,11 +5,12 @@ from __future__ import annotations
 
 import os
 import sqlite3
+import threading
 from datetime import datetime
 from pathlib import Path
 
 from config import ID_STRFTIME
-from utils.errors import ERR_SELECTOR_DUPLICATE, GWError
+from utils.errors import ERR_DB_UPDATE, ERR_SELECTOR_DUPLICATE, GWError, raise_gw
 
 # ---------------------------------------------------------------------------
 # Sequence for generate_id — guarantees uniqueness even under rapid calls.
@@ -17,6 +18,7 @@ from utils.errors import ERR_SELECTOR_DUPLICATE, GWError
 # natural value would produce a collision.
 # ---------------------------------------------------------------------------
 _last_id: str = ""
+_id_lock = threading.Lock()
 
 # ---------------------------------------------------------------------------
 # DDL
@@ -71,7 +73,7 @@ CREATE TABLE IF NOT EXISTS norks (
 
 def get_connection(db_path: str | Path) -> sqlite3.Connection:
     """Open a SQLite connection with WAL mode and row_factory = sqlite3.Row."""
-    conn = sqlite3.connect(str(db_path))
+    conn = sqlite3.connect(str(db_path), check_same_thread=False)
     conn.row_factory = sqlite3.Row
     conn.execute("PRAGMA journal_mode=WAL")
     conn.execute("PRAGMA foreign_keys=ON")
@@ -108,19 +110,20 @@ def generate_id() -> str:
     without busy-waiting.
     """
     global _last_id
-    now = datetime.now()
-    ts = now.strftime(ID_STRFTIME)
-    ms = int(now.microsecond / 1000)
+    with _id_lock:
+        now = datetime.now()
+        ts = now.strftime(ID_STRFTIME)
+        ms = int(now.microsecond / 1000)
 
-    candidate = f"{ts}{ms:03d}"
-    if candidate <= _last_id and _last_id.startswith(ts):
-        # Bump ms past the last-used value for this second.
-        last_ms = int(_last_id[12:15])
-        ms = (last_ms + 1) % 1000
         candidate = f"{ts}{ms:03d}"
+        if candidate <= _last_id and _last_id.startswith(ts):
+            # Bump ms past the last-used value for this second.
+            last_ms = int(_last_id[12:15])
+            ms = (last_ms + 1) % 1000
+            candidate = f"{ts}{ms:03d}"
 
-    _last_id = candidate
-    return candidate
+        _last_id = candidate
+        return candidate
 
 
 def get_current_user() -> str:
@@ -238,6 +241,16 @@ def update_target(
     Always refreshes last_updated and last_updated_by regardless of what
     is passed in fields.
     """
+    _VALID_TARGET_FIELDS = {
+        "target_name", "case_number", "laptop_count", "last_updated", "last_updated_by"
+    }
+    invalid = set(fields.keys()) - _VALID_TARGET_FIELDS
+    if invalid:
+        raise_gw(
+            ERR_DB_UPDATE,
+            f"update_target() received invalid field(s): {', '.join(sorted(invalid))}",
+        )
+
     # Merge timestamp refresh into the field set so a single UPDATE suffices.
     updates = {**fields, "last_updated": now_iso(), "last_updated_by": updated_by}
 

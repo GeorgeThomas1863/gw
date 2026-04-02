@@ -57,22 +57,26 @@ class SApiClient:
         """Test token against all S_VALIDATE_URLS.
 
         Returns True if any endpoint returns 2xx.
-        Raises GWError(ERR_S_AUTH_FAILED) if all return 403/401.
-        Raises GWError(ERR_S_REQUEST_FAILED) on network error.
+        Returns False (via GWError) only after all URLs have been tried.
+        Logs network errors per-URL and continues to the next URL.
         """
+        import logging
+        _log = logging.getLogger(__name__)
+
         any_success = False
-        try:
-            for entry in S_VALIDATE_URLS:
-                method = entry["method"].upper()
-                url = entry["url"]
+        for entry in S_VALIDATE_URLS:
+            method = entry["method"].upper()
+            url = entry["url"]
+            try:
                 if method == "GET":
                     response = self.session.get(url)
                 else:
                     response = self.session.post(url)
                 if response.status_code < 300:
                     any_success = True
-        except requests.exceptions.RequestException as exc:
-            raise_gw(ERR_S_REQUEST_FAILED, f"Network error during token validation: {exc}")
+            except requests.exceptions.RequestException as exc:
+                _log.warning("validate_token: network error for %s %s: %s", method, url, exc)
+                continue
 
         if not any_success:
             raise_gw(ERR_S_AUTH_FAILED, "S API authentication failed — all validation endpoints rejected the token.")
