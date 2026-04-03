@@ -110,8 +110,9 @@ class GrayWolfeApp(tk.Tk):
         # Search button
         btn_row = ttk.Frame(frame)
         btn_row.grid(row=4, column=0, columnspan=2, sticky="e", pady=(8, 0))
-        ttk.Button(btn_row, text="Search", command=self._do_search,
-                   width=12).pack(side="right")
+        self._btn_search = ttk.Button(btn_row, text="Search",
+                                      command=self._do_search, width=12)
+        self._btn_search.pack(side="right")
 
         self._on_search_mode_change()
 
@@ -164,8 +165,9 @@ class GrayWolfeApp(tk.Tk):
         # Add Data button
         btn_row = ttk.Frame(frame)
         btn_row.grid(row=4, column=0, columnspan=2, sticky="e", pady=(8, 0))
-        ttk.Button(btn_row, text="Add Data", command=self._do_add,
-                   width=12).pack(side="right")
+        self._btn_add = ttk.Button(btn_row, text="Add Data",
+                                    command=self._do_add, width=12)
+        self._btn_add.pack(side="right")
 
         self._on_import_mode_change()
 
@@ -178,8 +180,9 @@ class GrayWolfeApp(tk.Tk):
         ttk.Label(bar, text=f"User: {self.username}").pack(side="left", padx=8, pady=3)
         ttk.Separator(bar, orient="vertical").pack(side="left", fill="y", pady=2)
 
-        ttk.Button(bar, text="Pull from Master",
-                   command=self._do_pull_master).pack(side="left", padx=8, pady=2)
+        self._btn_pull = ttk.Button(bar, text="Pull from Master",
+                                    command=self._do_pull_master)
+        self._btn_pull.pack(side="left", padx=8, pady=2)
         ttk.Separator(bar, orient="vertical").pack(side="left", fill="y", pady=2)
 
         self._status_var = tk.StringVar(value="Ready")
@@ -333,7 +336,16 @@ class GrayWolfeApp(tk.Tk):
     # Threading
     # ------------------------------------------------------------------
 
+    def _set_busy(self, busy: bool) -> None:
+        """Disable/enable all action buttons while a background thread runs."""
+        state = "disabled" if busy else "normal"
+        self._btn_search.configure(state=state)
+        self._btn_add.configure(state=state)
+        self._btn_pull.configure(state=state)
+
     def _run_in_thread(self, func, *args, on_complete=None, on_error=None) -> None:
+        self._set_busy(True)
+
         def worker():
             try:
                 result = func(*args)
@@ -349,6 +361,7 @@ class GrayWolfeApp(tk.Tk):
         try:
             while True:
                 status, payload, callback = self._result_queue.get_nowait()
+                self._set_busy(False)  # always re-enable before invoking callback
                 if status == "ok" and callback:
                     callback(payload)
                 elif status == "err" and callback:

@@ -335,7 +335,7 @@ def check_linkedin(value: str) -> bool:
         return False
     if not _LINKEDIN_DOMAIN_RE.match(value):
         return False
-    if len(value) < 5 or len(value) > 40:
+    if len(value) < 5 or len(value) > 200:
         return False
     if re.search(r"[ !,?\\+]", value):
         return False
@@ -367,7 +367,7 @@ def check_github(value: str) -> bool:
         return False
     if not _GITHUB_DOMAIN_RE.match(value):
         return False
-    if len(value) < 6 or len(value) > 40:
+    if len(value) < 6 or len(value) > 200:
         return False
     if re.search(r"\s", value):
         return False
@@ -391,13 +391,12 @@ def check_telegram(value: str) -> bool:
     value = value.strip()
     if not value:
         return False
-    # Username: starts with @, body matches regex (5-32 alphanumeric/underscore)
+    # Only @handle form: starts with @, body is 5-32 alphanumeric/underscore.
+    # Bare numeric IDs are indistinguishable from zip codes / case numbers and
+    # are intentionally not supported.
     if value.startswith("@"):
         username = value[1:]
         return bool(_TELEGRAM_USERNAME_RE.match(username))
-    # Numeric ID: 5-15 digits
-    if value.isdigit():
-        return 5 <= len(value) <= 15
     return False
 
 

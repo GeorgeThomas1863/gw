@@ -15,7 +15,8 @@ logger = get_logger("gw.sync")
 _SYNC_TABLES: tuple[str, ...] = ("norks", "targets", "selectors")
 
 # Column names for each table (must match DDL in database.py, minus the rowid 'id').
-_TABLE_COLUMNS: dict[str, tuple[str, ...]] = {
+# Exported (no leading underscore) so admin/merge_user_db.py can import the same list.
+TABLE_COLUMNS: dict[str, tuple[str, ...]] = {
     "selectors": (
         "selector_id", "selector", "selector_clean", "selector_type",
         "target_id", "nork_id",
@@ -134,7 +135,7 @@ def _sync_table(
 
     Returns the number of rows written (includes rows that replaced existing ones).
     """
-    cols = _TABLE_COLUMNS[table]
+    cols = TABLE_COLUMNS[table]
     pk = _PK[table]
     col_list = ", ".join(cols)
     placeholder_list = ", ".join("?" * len(cols))

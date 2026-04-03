@@ -131,6 +131,15 @@ class SApiClient:
             raise_gw(ERR_S_REQUEST_FAILED, f"Network error during S search: {exc}")
 
         try:
+            response.raise_for_status()
+        except requests.exceptions.HTTPError as exc:
+            if response.status_code in (401, 403):
+                raise_gw(ERR_S_AUTH_FAILED,
+                         f"S API authentication failed (HTTP {response.status_code}) — token may be expired.")
+            raise_gw(ERR_S_REQUEST_FAILED,
+                     f"S API returned HTTP {response.status_code}: {exc}")
+
+        try:
             return response.json()
         except ValueError as exc:
             raise_gw(ERR_S_PARSE_FAILED, f"Failed to parse S API response as JSON: {exc}")

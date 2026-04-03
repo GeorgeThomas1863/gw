@@ -21,6 +21,7 @@ sys.path.insert(0, str(Path(__file__).parent.parent))
 
 import config
 from data.database import get_connection, initialize_schema
+from data.sync import TABLE_COLUMNS
 from utils.logger import get_logger
 
 logger = get_logger("gw.admin.merge")
@@ -122,9 +123,14 @@ def _merge_table(
     dry_run: bool,
 ) -> tuple[int, list[dict]]:
     """Merge one table. Returns (inserted_count, conflict_list)."""
+    # Use explicit column list (excludes the autoincrement 'id' rowid) so that
+    # rowid collisions between independent DBs cannot cause INSERT OR IGNORE to
+    # silently drop records that have a new business key.
+    col_list = ", ".join(TABLE_COLUMNS[table])
+
     user_rows = {
         row[pk_col]: {k: row[k] for k in row.keys()}
-        for row in user_conn.execute(f"SELECT * FROM {table}").fetchall()  # noqa: S608
+        for row in user_conn.execute(f"SELECT {col_list} FROM {table}").fetchall()  # noqa: S608
     }
 
     if not user_rows:
@@ -132,7 +138,7 @@ def _merge_table(
 
     master_rows = {
         row[pk_col]: {k: row[k] for k in row.keys()}
-        for row in master_conn.execute(f"SELECT * FROM {table}").fetchall()  # noqa: S608
+        for row in master_conn.execute(f"SELECT {col_list} FROM {table}").fetchall()  # noqa: S608
     }
 
     inserted = 0
