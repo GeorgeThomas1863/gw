@@ -63,6 +63,7 @@ class SApiClient:
         import logging
         _log = logging.getLogger(__name__)
 
+        print("S token validation: testing against live API...")
         any_success = False
         for entry in S_VALIDATE_URLS:
             method = entry["method"].upper()
@@ -73,14 +74,20 @@ class SApiClient:
                 else:
                     response = self.session.post(url)
                 if response.status_code < 300:
+                    print(f"  PASS  {method} {url} -> HTTP {response.status_code}")
                     any_success = True
+                else:
+                    print(f"  FAIL  {method} {url} -> HTTP {response.status_code}")
             except requests.exceptions.RequestException as exc:
+                print(f"  ERROR {method} {url} -> {exc}")
                 _log.warning("validate_token: network error for %s %s: %s", method, url, exc)
                 continue
 
         if not any_success:
+            print("S token validation: FAILED — all endpoints rejected the token.")
             raise_gw(ERR_S_AUTH_FAILED, "S API authentication failed — all validation endpoints rejected the token.")
 
+        print("S token validation: OK")
         return True
 
     def search(self, query: str) -> list[dict]:

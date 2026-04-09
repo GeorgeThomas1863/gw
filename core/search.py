@@ -142,11 +142,14 @@ def search_graywolfe(selectors: list[str], conn: sqlite3.Connection) -> list[dic
 def search_s(selectors: list[str], s_client) -> list[dict]:
     """Call SApiClient.search for each selector, aggregate results.
 
+    Validates the token against the live S API before issuing any queries.
     Each result dict has a 'selector' field with the search term.
     Returns flat list. On per-selector error, logs warning and continues.
     """
     if not selectors:
         return []
+
+    s_client.validate_token()
 
     results: list[dict] = []
     for value in selectors:

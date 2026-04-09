@@ -4,128 +4,109 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-GrayWolfe is a Microsoft Access application for managing selectors (names, emails, phones, IPs, addresses, etc.) stored in SharePoint. It provides search across two data sources (GrayWolfe local database and the "S" system), data import with automatic type detection, and target management.
+GrayWolfe is a Python/Tkinter desktop application for managing selectors (names, emails, phones, IPs, addresses, etc.). It searches across two data sources — the local GrayWolfe SQLite database and the "S" external API — and provides data import with automatic type detection and target management.
 
-**Core problem:** Users collect thousands of selectors from disparate sources. GrayWolfe detects selector types, deduplicates them, and links related selectors into "targets" — connected groups representing a single entity. When new data arrives, it must merge into existing groups correctly (e.g., a new phone number linked to a known email should join that email's target, not create a new one). "Targets" here means selector groups, not military targets.
+**Core problem:** Users collect thousands of selectors from disparate sources. GrayWolfe detects selector types, deduplicates them, and links related selectors into "targets" — connected groups representing a single entity. "Targets" means selector groups, not military targets.
 
-**IMPORTANT**: This is a COPY of an Access database. The `.cls` and `.bas` files here are exported text — they have no connection to the actual Access runtime. Edit files here; the user will import and test in Access.
+**Storage:** Each user has a personal SQLite DB at `\\server\graywolfe\users\{username}.db`. A master DB lives at `\\server\graywolfe\master.db`. An admin tool merges user DBs into master. No SharePoint.
 
-## No Build/Test Commands
+**`old_vba/`** contains the archived VBA source from before the Python rewrite. It is reference-only — do not modify it.
 
-There are no build, lint, or test commands. VBA code runs only inside the Access database. The user handles all importing and testing.
+## Running
+
+```bash
+python main.py
+```
+
+Tests (gitignored locally):
+```bash
+pytest                          # all tests
+pytest tests/test_type_engine.py   # single file
+pytest -k test_detect_email     # single test
+```
+
+Admin — merge a user's DB into master:
+```bash
+python admin/merge_user_db.py path/to/user.db [--dry-run]
+```
 
 ## Architecture
 
-### Module Numbering Convention
-
-Modules are numbered by layer:
-
-| Prefix | Layer | Files |
-|--------|-------|-------|
-| `mod1*` | **Workflow orchestration** | `mod1a_RunSearch.bas`, `mod1b_RunAddData.bas` |
-| `mod2*` | **Data access** | `mod2a_Sharepoint_Tables.bas`, `mod2b_S.bas` |
-| `mod3*` | **Data processing** | `mod3a_CleanFix.bas`, `mod3b_DetectCheck.bas` |
-| `mod4*` | **Infrastructure** | `mod4a_APICalls.bas`, `mod4b_DefineThings.bas`, `mod4c_ErrorHandler.bas`, `mod4d_JsonParser.bas` |
-| `mod5*` | **Utilities** | `mod5_UTIL_Delete.bas` |
-
-### Form Hierarchy
-
-- **`Form_frmMainMenu`** — Entry point. Two tabs: Search and Add Data.
-- **`Form_frmResultsDisplay`** — Results viewer with S/GW tabs and dynamic filters.
-  - `Form_frmResults_SSubform` — S results subform
-  - `Form_frmResults_GWSubform` — GW results subform
-- **`Form_frmSchemaDetection`** — Column type confirmation during default import.
-- **`Form_frmTargetDetails`** — Target editor (metadata + selectors).
-  - `Form_frmTargetDetails_Subform` — Target selectors subform
-- **`Form_frmMergeTargets`** — Merge two targets (keep one, absorb the other). Opened from Target Details with pre-filled targetId.
-
-### Data Flow
-
 ```
-User Input → Cleaning (mod3a) → Detection (mod3b) → Validation → Local Tables → SharePoint Sync (mod2a)
+main.py          Entry point — resolves DB path, initializes schema, launches GrayWolfeApp
+config.py        All constants: paths, S API config, selector types, delimiters, ID format
+core/            Business logic
+  search.py        Search orchestration (GW + S)
+  import_data.py   Import workflows (default and unrelated)
+  targets.py       Target lifecycle: create, merge, collect
+  type_engine.py   Selector type detection, validation, cleaning
+data/            Data access
+  database.py      SQLite connection, DDL, CRUD helpers, ID generation
+  s_api.py         S API client (search, auth, link generation)
+  sync.py          pull_from_master() — merges master DB into local DB
+utils/
+  errors.py        GWError exception + error codes (1950–1972)
+  logger.py        get_logger() wrapper
+ui/              Tkinter windows
+  app.py           GrayWolfeApp (root window, Search + Add Data tabs)
+  results_window.py  Results display (GW and S tabs, dynamic filters)
+  schema_detection.py  Column type confirmation during default import
+  target_details.py    Target editor
+  merge_targets.py     Merge two targets
+admin/
+  merge_user_db.py  CLI: merges user DB into master, flags conflicts to log
+tests/           pytest test suite (gitignored — not committed)
+old_vba/         Archived VBA source (reference only)
 ```
-
-Internally, all delimiters are normalized to `"!!"` for processing, then reconverted for display. All selector types are lowercased internally, proper-cased for display.
 
 ### Key Workflows
 
-**Search:** `frmMainMenu.btnSearch_Click()` → `RunSearch()` (mod1a) → `SearchGrayWolfe()` + `SearchS()` → fills temp tables → opens `frmResultsDisplay`
+**Search:** `app.py` → `core/search.py:run_search()` → queries local SQLite + `data/s_api.py:SApiClient` → opens `ui/results_window.py`
 
-**Default Import:** `frmMainMenu.btnAdd_Click()` → `RunDefaultImport()` (mod1b) → auto-detects column types → `FillTempSchema()` → opens `frmSchemaDetection` → user confirms → `RunAddSchemaData()` → creates selectors + targets → syncs to SharePoint
+**Default Import:** `app.py` → `core/import_data.py:detect_column_types()` → opens `ui/schema_detection.py` for user confirmation → `run_default_import()` → creates selectors + targets, handles bridging merges
 
-**Unrelated Import:** `RunUnrelatedImport()` (mod1b) → direct type detection, skips relationship creation
+**Unrelated Import:** `run_unrelated_import()` — direct type detection, skips relationship/target creation
 
-**Target Edit:** `frmTargetDetails.Form_Current()` → loads target data → user edits → `UpdateTargetSelectors()` / `UpdateTargetStatsForm()` → syncs to SharePoint
+**Target Edit:** `ui/target_details.py` → `core/targets.py` → local SQLite write
 
-## Database Tables
+**Merge Targets:** `ui/merge_targets.py` → `core/targets.py:merge_targets()` — absorbs one target into another; reassigns all selectors
+
+## Database Schema
+
+Three tables (defined in `data/database.py`):
 
 | Table | Purpose |
 |-------|---------|
-| `localNorks`, `localSelectors`, `localTargets` | Local mirrors of SharePoint lists |
-| `tempSchema` | Staging for schema detection during import |
-| `tempGWSearchResults`, `tempSSearchResults` | Staging for search results |
+| `selectors` | Individual selector values with type, target_id, nork_id |
+| `targets` | Selector groups with metadata (name, case_number, laptop_count) |
+| `norks` | Entity metadata |
 
-SharePoint lists: **Norks**, **Selectors**, **Targets**
-
-## Naming Conventions
-
-### Functions
-
-- `RunX()` — Workflow entry points
-- `SearchX()` — Search operations
-- `FillX()` — Insert/populate data
-- `UpdateX()` — Modify existing data
-- `CheckX()` — Validation (returns Boolean)
-- `FixX()` — Data cleaning/normalization
-- `DetectX()` — Type/pattern detection
-- `ClearX()` — Delete/reset operations
-- `BuildX()` — Construct strings/data
-- `DefineX()` — Return config arrays/constants
-
-### Variables
-
-- `Str` suffix for strings: `inputStr`, `filterStr`
-- `Arr` suffix for arrays: `searchArr`, `stateArr`
-- `Rs` for recordsets: `rs`, `rsSearch`
+`selector_clean` is the normalized form used for deduplication. During import, any matching `selector_clean` blocks the insert (global uniqueness). During manual add via Target Details, `selector_clean + target_id` is checked instead.
 
 ## Selector Types
 
-11 types in detection priority order: `email`, `phone`, `ip`, `address`, `linkedin`, `github`, `telegram`, `discord`, `name`, `other`, `row`
+10 types in detection priority order (from `config.SELECTOR_TYPES`):
+`email`, `phone`, `ip`, `address`, `linkedin`, `github`, `telegram`, `discord`, `name`, `other`
 
-Type detection uses `VBScript.RegExp` and lives in `mod3b_DetectCheck.bas`. Each type has a `CheckX()` validator and a `FixXStr()` cleaner in `mod3a_CleanFix.bas`.
+`type_engine.py` contains `check_<type>()` (bool), `fix_<type>()` (cleaned string), `detect_selector_type()`, and `build_selector_clean()`.
 
 ## Error Handling
 
-Custom error system in `mod4c_ErrorHandler.bas` using `ThrowError(errCode, errMsg)`. Error codes 1950-1972 cover specific scenarios (1950=empty search input, 1966=missing S API token, 1968=S auth failed, 1972=merge targets failed, 1998=user cancellation). See the file for the full list.
-
-SQL operations use `db.Execute strSQL, dbFailOnError`. Cleanup operations use `On Error Resume Next`.
+`utils/errors.py` defines `GWError(code, message)` and `raise_gw(code, msg)`. Codes 1950–1972 mirror the old VBA system. Raise `GWError` for all application-level errors; let SQLite/requests exceptions propagate or wrap them with `raise_gw()`.
 
 ## Key Technical Details
 
-- **HTTP:** WinINet API (`mod4a_APICalls.bas`) for S API calls; MSXML2 for simpler requests
-- **JSON:** Borrowed VBA-JSON library in `mod4d_JsonParser.bas` (~42KB, do not modify)
-- **S API rate limiting:** 500-item batches with 10-second pauses between calls
-- **ID generation:** Timestamp-based format `YYMMDDHHNNSSMMM` via `DefineUniqueId()`
-- **Config arrays:** All defined in `mod4b_DefineThings.bas` (selector types, states, street suffixes, delimiters, form defaults, table/column mappings)
-- **Mapping functions** in `mod4b_DefineThings.bas` use `Scripting.Dictionary`: `TableMap()`, `ColumnSearchMap()`, `ColumnAddMap()`, `DetectFunctionMap()`, `TargetFormDisplayMap()`, `StateMap()`
+- **ID generation:** `data/database.py:generate_id()` — `YYMMDDHHMMSS` + 3-digit ms, thread-safe, collision-proof
+- **Delimiters:** `INTERNAL_DELIM = "!!"` (columns within a row), `ROW_DELIM = "+++"` (row separator)
+- **S API rate limiting:** 500-item batches with 10-second pauses (`config.S_BATCH_SIZE`, `S_RATE_LIMIT_SLEEP`)
+- **Threading:** Search and import run in background threads; results returned to main thread via `queue.Queue` polled in `app.py:_poll_queue()`
+- **DB connection:** WAL mode, `foreign_keys=ON`, `row_factory=sqlite3.Row`
 
-## What Works Well
+## Target Bridging
 
-Duplicate detection via `selectorClean` (normalized form stored alongside display form), regex-based type detection, and the data model (selectors → targets with nork metadata) are solid foundations. The cleaning/detection pipeline in mod3a/mod3b is reliable and extensible.
-
-## Target Bridging & Shared Selectors
-
-Key design decisions for how targets and selectors interact:
-
-- **Import default = join existing target**: When imported selectors match an existing target, they join it (assume same entity).
-- **Bridging merges targets**: When an imported row's selectors span 2+ existing targets, `AddRelatedRowTargets()` calls `MergeTargets()` to combine them into one. `CollectTargetIdsForRow()` gathers all matching targetIds first.
-- **Shared selectors allowed**: The same selector value can belong to multiple targets (e.g., shared office phone). `FillLocalSelectors()` checks selectorClean+targetId when a targetId is provided (manual add via Target Details), but blocks any duplicate during import.
-- **Search shows all targets**: `SearchGrayWolfe()` counts distinct targets from `tempGWSearchResults` after the search loop, so shared selectors surface all their targets.
-- **UPDATE scope**: `UpdateSelectorsTblTargetId()` and `UpdateGWSearchTargetId()` only fill in blank targetIds, preserving existing target assignments on shared selectors.
+When an imported row's selectors match 2+ existing targets, `collect_target_ids_for_row()` gathers all matching `target_id`s, then `merge_targets()` combines them. This preserves the invariant that selectors on the same row belong to one entity.
 
 ## Known Architectural Gaps
 
-These are confirmed issues, not speculative. Future changes should account for them rather than working around them unknowingly.
-
-- **Search doesn't expand to target group**: `SearchGrayWolfe()` returns exact selector matches only. It does not return sibling selectors belonging to the same target, so the user must manually navigate to the target to see the full picture.
-- **No import transaction safety**: Import operations (`RunAddSchemaData`, `FillLocalSelectors`, etc.) are not wrapped in transactions. A mid-import failure (network error, SharePoint timeout) can leave partial data in local tables without corresponding SharePoint records.
+- **Search doesn't expand to target group:** `run_search()` returns exact selector matches only — it does not fetch sibling selectors from the same target.
+- **No import transaction safety:** Import operations are not wrapped in transactions. A mid-import failure can leave partial data in local DB.
