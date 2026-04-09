@@ -61,3 +61,9 @@ ID_STRFTIME: str = "%y%m%d%H%M%S"
 # ---------------------------------------------------------------------------
 APP_NAME: str = "GrayWolfe"
 APP_VERSION: str = "2.0.0"
+
+# ---------------------------------------------------------------------------
+# Codebase export (export_codebase.py)
+# Set a path to skip the prompt; leave blank to be asked at runtime.
+# ---------------------------------------------------------------------------
+EXPORT_OUTPUT_PATH: str = ""
