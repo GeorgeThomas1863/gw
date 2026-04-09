@@ -8,6 +8,7 @@ import sqlite3
 import threading
 import tkinter as tk
 import tkinter.font as tkfont
+import webbrowser
 from tkinter import messagebox, ttk
 
 import config
@@ -26,12 +27,17 @@ _DELIMITER_OPTIONS = {
     "Tab": "\t",
     "Newline": "\n",
     "Comma": ",",
+    "Semicolon": ";",
+    "Pipe": "|",
 }
 
 _SEARCH_MODE_OPTIONS = ("GW + S", "GW Only", "S Only")
 _IMPORT_MODE_OPTIONS = ("Default Import", "Unrelated Import")
 _TYPE_OPTIONS = ["Auto-Detect"] + list(config.SELECTOR_TYPES)
 _FONT_SIZE_OPTIONS = ("8", "9", "10", "11", "12", "14", "16", "18", "20")
+_SEARCH_PLACEHOLDER = "Search one or multiple selectors — paste as many as you want here."
+_ADD_DEFAULT_PLACEHOLDER = "Input or paste selectors to import here."
+_ADD_UNRELATED_PLACEHOLDER = "Input or paste unrelated (independent) selectors here."
 
 
 class GrayWolfeApp(tk.Tk):
@@ -108,6 +114,11 @@ class GrayWolfeApp(tk.Tk):
             command=self._toggle_token_visibility,
         )
         self._token_toggle_btn.pack(side="left")
+        self._token_help_btn = ttk.Button(
+            token_row, text="?", width=2,
+            command=self._open_token_help,
+        )
+        self._token_help_btn.pack(side="left", padx=(2, 0))
 
         # Row 2 — input label
         ttk.Label(frame, text="Search Input:").grid(
@@ -137,6 +148,21 @@ class GrayWolfeApp(tk.Tk):
         vsb.grid(row=3, column=2, sticky="ns", pady=(0, 6))
         self._search_text["yscrollcommand"] = vsb.set
         self._search_text.bind("<Key>", self._reveal_search_font_control)
+        self._search_text.bind(
+            "<KeyRelease>",
+            lambda _e: self._schedule_delim_detect(
+                self._search_text, self._search_delim_var, "_search_delim_after_id"
+            ),
+            add=True,
+        )
+        self._search_text.bind(
+            "<<Paste>>",
+            lambda _e: self._schedule_delim_detect(
+                self._search_text, self._search_delim_var, "_search_delim_after_id"
+            ),
+            add=True,
+        )
+        self._setup_placeholder(self._search_text, lambda: _SEARCH_PLACEHOLDER)
 
         # Row 4 — Search button (wider)
         btn_row = ttk.Frame(frame)
@@ -145,6 +171,10 @@ class GrayWolfeApp(tk.Tk):
             btn_row, text="Search", command=self._do_search, width=18,
         )
         self._btn_search.pack(side="right")
+        self._btn_clear_search = ttk.Button(
+            btn_row, text="Clear", command=self._clear_search, width=10,
+        )
+        self._btn_clear_search.pack(side="right", padx=(0, 6))
 
         self._on_search_mode_change()
 
@@ -169,6 +199,7 @@ class GrayWolfeApp(tk.Tk):
         _add_font_cb.bind("<<ComboboxSelected>>", self._on_add_font_size_change)
         self._add_font_frame.grid_remove()
         self._add_font_revealed = False
+        self._add_current_placeholder = _ADD_DEFAULT_PLACEHOLDER
         self._add_font = tkfont.nametofont("TkDefaultFont").copy()
         self._add_font.configure(size=11)
         self._add_text = tk.Text(frame, height=8, wrap="none", font=self._add_font)
@@ -179,6 +210,21 @@ class GrayWolfeApp(tk.Tk):
         vsb.grid(row=1, column=2, sticky="ns", pady=(0, 6))
         self._add_text["yscrollcommand"] = vsb.set
         self._add_text.bind("<Key>", self._reveal_add_font_control)
+        self._add_text.bind(
+            "<KeyRelease>",
+            lambda _e: self._schedule_delim_detect(
+                self._add_text, self._add_delim_var, "_add_delim_after_id"
+            ),
+            add=True,
+        )
+        self._add_text.bind(
+            "<<Paste>>",
+            lambda _e: self._schedule_delim_detect(
+                self._add_text, self._add_delim_var, "_add_delim_after_id"
+            ),
+            add=True,
+        )
+        self._setup_placeholder(self._add_text, lambda: self._add_current_placeholder)
 
         # Options row
         opts = ttk.Frame(frame)
@@ -209,14 +255,43 @@ class GrayWolfeApp(tk.Tk):
             values=_TYPE_OPTIONS, state="readonly", width=16)
         self._type_override_cb.pack(side="left", padx=(4, 0))
 
-        # Add Data button
+        # Row 4 — S search after import
+        s_add_row = ttk.Frame(frame)
+        s_add_row.grid(row=4, column=0, columnspan=2, sticky="ew", pady=(6, 0))
+        self._s_add_var = tk.BooleanVar(value=False)
+        self._s_add_cb = ttk.Checkbutton(
+            s_add_row, text="Search S after import",
+            variable=self._s_add_var,
+            command=self._on_s_add_toggle,
+        )
+        self._s_add_cb.pack(side="left")
+        self._s_add_token_label = ttk.Label(s_add_row, text="S Token:")
+        self._s_add_token_label.pack(side="left", padx=(12, 0))
+        self._s_add_token_var = tk.StringVar()
+        self._s_add_token_entry = ttk.Entry(
+            s_add_row, textvariable=self._s_add_token_var, show="*", width=40,
+        )
+        self._s_add_token_entry.pack(side="left", padx=(4, 4))
+        self._s_add_token_visible = False
+        self._s_add_token_toggle_btn = ttk.Button(
+            s_add_row, text="\U0001F441", width=3,
+            command=self._toggle_s_add_token_visibility,
+        )
+        self._s_add_token_toggle_btn.pack(side="left")
+
+        # Row 5 — Add Data button (shifted from row 4)
         btn_row = ttk.Frame(frame)
-        btn_row.grid(row=4, column=0, columnspan=2, sticky="e", pady=(8, 0))
+        btn_row.grid(row=5, column=0, columnspan=2, sticky="e", pady=(8, 0))
         self._btn_add = ttk.Button(btn_row, text="Add Data",
                                     command=self._do_add, width=18)
         self._btn_add.pack(side="right")
+        self._btn_clear_add = ttk.Button(
+            btn_row, text="Clear", command=self._clear_add, width=10,
+        )
+        self._btn_clear_add.pack(side="right", padx=(0, 6))
 
         self._on_import_mode_change()
+        self._on_s_add_toggle()
 
     # ---- Status Bar ----
 
@@ -245,6 +320,7 @@ class GrayWolfeApp(tk.Tk):
         state = "normal" if needs_token else "disabled"
         self._token_entry.configure(state=state)
         self._token_toggle_btn.configure(state=state)
+        self._token_help_btn.configure(state=state)
         self._token_label.configure(foreground="" if needs_token else "#aaa")
 
     def _on_import_mode_change(self, event=None) -> None:
@@ -254,12 +330,33 @@ class GrayWolfeApp(tk.Tk):
         self._type_override_label.configure(
             foreground="" if is_unrelated else "#aaa"
         )
+        new_ph = _ADD_UNRELATED_PLACEHOLDER if is_unrelated else _ADD_DEFAULT_PLACEHOLDER
+        self._add_current_placeholder = new_ph
+        if self._add_text.tag_ranges("placeholder"):
+            self._add_text.delete("1.0", "end")
+            self._add_text.insert("1.0", new_ph)
+            self._add_text.tag_add("placeholder", "1.0", "end-1c")
+
+    def _on_s_add_toggle(self) -> None:
+        """Enable/disable S token row based on checkbox state."""
+        enabled = self._s_add_var.get()
+        state = "normal" if enabled else "disabled"
+        self._s_add_token_entry.configure(state=state)
+        self._s_add_token_toggle_btn.configure(state=state)
+        self._s_add_token_label.configure(foreground="" if enabled else "#aaa")
 
     def _toggle_token_visibility(self) -> None:
         self._token_visible = not self._token_visible
         self._token_entry.configure(show="" if self._token_visible else "*")
         self._token_toggle_btn.configure(
             text="\U0001F512" if self._token_visible else "\U0001F441"
+        )
+
+    def _toggle_s_add_token_visibility(self) -> None:
+        self._s_add_token_visible = not self._s_add_token_visible
+        self._s_add_token_entry.configure(show="" if self._s_add_token_visible else "*")
+        self._s_add_token_toggle_btn.configure(
+            text="\U0001F512" if self._s_add_token_visible else "\U0001F441"
         )
 
     def _reveal_search_font_control(self, event=None) -> None:
@@ -278,12 +375,129 @@ class GrayWolfeApp(tk.Tk):
     def _on_add_font_size_change(self, event=None) -> None:
         self._add_font.configure(size=int(self._add_font_size_var.get()))
 
+    def _detect_input_delimiter(self, text: str) -> str | None:
+        """Detect the most likely column delimiter in *text*.
+
+        Candidates checked in priority order: semicolon, pipe, tab, comma.
+        Algorithm mirrors VBA DetectInputDelimiter:
+          - Split into up to 20 non-empty rows.
+          - Fewer than 4 rows: first candidate found in any row wins.
+          - 4+ rows: candidate must appear in >74% of rows AND average
+            hits-per-row > 1.
+          - Returns the winning delimiter character, or None if undecided.
+        """
+        candidates = [";", "|", "\t", ","]
+        rows = [r for r in text.split("\n") if r.strip()][:20]
+        if not rows:
+            return None
+        if len(rows) < 4:
+            for cand in candidates:
+                if any(cand in row for row in rows):
+                    return cand
+            return None
+        for cand in candidates:
+            hit_rows = [row for row in rows if cand in row]
+            if not hit_rows:
+                continue
+            hit_ratio = len(hit_rows) / len(rows)
+            avg_hits = sum(row.count(cand) for row in hit_rows) / len(hit_rows)
+            if hit_ratio > 0.74 and avg_hits > 1:
+                return cand
+        return None
+
+    def _schedule_delim_detect(
+        self,
+        widget: tk.Text,
+        delim_var: tk.StringVar,
+        after_id_attr: str,
+    ) -> None:
+        """Cancel any pending detection for this widget and schedule a fresh one in 500 ms.
+
+        *after_id_attr* is the name of an instance attribute that stores the
+        pending `after()` handle. Lazily initialised via getattr — no __init__
+        assignment is needed.
+        """
+        pending = getattr(self, after_id_attr, None)
+        if pending is not None:
+            self.after_cancel(pending)
+        handle = self.after(
+            500,
+            lambda: self._run_delim_detect(widget, delim_var, after_id_attr),
+        )
+        setattr(self, after_id_attr, handle)
+
+    def _run_delim_detect(
+        self,
+        widget: tk.Text,
+        delim_var: tk.StringVar,
+        after_id_attr: str,
+    ) -> None:
+        """Detect delimiter in *widget* content and update *delim_var*.
+
+        Empty/placeholder content resets the combobox to "Auto".
+        Detected value is looked up in _DELIMITER_OPTIONS (None → "Auto").
+        """
+        setattr(self, after_id_attr, None)
+        text = self._get_text_widget_value(widget)
+        if not text:
+            delim_var.set("Auto")
+            return
+        detected = self._detect_input_delimiter(text)
+        # Build reverse map excluding the None/"Auto" entry so None-detected
+        # falls through to the default "Auto".
+        reverse = {v: k for k, v in _DELIMITER_OPTIONS.items() if v is not None}
+        delim_var.set(reverse.get(detected, "Auto"))
+
+    def _setup_placeholder(self, widget: tk.Text, get_text) -> None:
+        """Insert placeholder text (gray) that clears on focus and restores when empty."""
+        widget.tag_configure("placeholder", foreground="#aaa")
+        widget.insert("1.0", get_text())
+        widget.tag_add("placeholder", "1.0", "end-1c")
+
+        def on_focus_in(_event):
+            if widget.tag_ranges("placeholder"):
+                widget.delete("1.0", "end")
+
+        def on_focus_out(_event):
+            if not widget.get("1.0", "end").strip():
+                ph = get_text()
+                widget.insert("1.0", ph)
+                widget.tag_add("placeholder", "1.0", "end-1c")
+
+        def on_key(_event):
+            if widget.tag_ranges("placeholder"):
+                widget.delete("1.0", "end")
+
+        widget.bind("<FocusIn>", on_focus_in, add=True)
+        widget.bind("<FocusOut>", on_focus_out, add=True)
+        widget.bind("<Key>", on_key, add=True)
+
+    def _get_text_widget_value(self, widget: tk.Text) -> str:
+        """Return text content; returns empty string if placeholder is currently active."""
+        if widget.tag_ranges("placeholder"):
+            return ""
+        return widget.get("1.0", "end").strip()
+
+    def _clear_search(self) -> None:
+        self._search_text.delete("1.0", "end")
+        self._search_text.insert("1.0", _SEARCH_PLACEHOLDER)
+        self._search_text.tag_add("placeholder", "1.0", "end-1c")
+
+    def _clear_add(self) -> None:
+        self._add_text.delete("1.0", "end")
+        self._add_text.insert("1.0", self._add_current_placeholder)
+        self._add_text.tag_add("placeholder", "1.0", "end-1c")
+
+    def _open_token_help(self) -> None:
+        if config.S_TOKEN_HELP_URL:
+            webbrowser.open(config.S_TOKEN_HELP_URL)
+
     # ------------------------------------------------------------------
     # Search action
     # ------------------------------------------------------------------
 
     def _do_search(self) -> None:
-        raw = self._search_text.get("1.0", "end").strip()
+        raw = self._get_text_widget_value(self._search_text)
         if not raw:
             messagebox.showwarning("Empty Input", "Please enter search terms.", parent=self)
             return
@@ -338,7 +552,7 @@ class GrayWolfeApp(tk.Tk):
     # ------------------------------------------------------------------
 
     def _do_add(self) -> None:
-        raw = self._add_text.get("1.0", "end").strip()
+        raw = self._get_text_widget_value(self._add_text)
         if not raw:
             messagebox.showwarning("Empty Input", "Please enter data to import.", parent=self)
             return
@@ -346,13 +560,31 @@ class GrayWolfeApp(tk.Tk):
         mode = self._import_mode_var.get()
         delim = _DELIMITER_OPTIONS[self._add_delim_var.get()]
 
+        # Resolve S client if "Search S after import" is checked
+        s_client = None
+        if self._s_add_var.get():
+            token = self._s_add_token_var.get().strip()
+            if not token:
+                messagebox.showwarning(
+                    "S Token Required",
+                    "Paste your S API token to search S after import.",
+                    parent=self,
+                )
+                return
+            try:
+                from data.s_api import SApiClient
+                s_client = SApiClient(token)
+            except GWError as exc:
+                messagebox.showerror(f"Error [GW{exc.code}]", exc.message, parent=self)
+                return
+
         if mode == "Unrelated Import":
             sel_type_display = self._type_override_var.get()
             sel_type = "auto" if sel_type_display == "Auto-Detect" else sel_type_display
             self._set_status("Importing…")
             self._run_in_thread(
                 run_unrelated_import, raw, sel_type, self.conn, self.username, delim,
-                on_complete=lambda n: self._on_import_complete(n),
+                on_complete=lambda n: self._on_import_complete(n, raw=raw, delim=delim, s_client=s_client),
                 on_error=self._on_worker_error,
             )
         else:
@@ -365,21 +597,69 @@ class GrayWolfeApp(tk.Tk):
             from ui.schema_detection import SchemaDetectionDialog
             SchemaDetectionDialog(
                 self, rows, detected,
-                on_confirm=lambda types: self._run_default_import(rows, types),
+                on_confirm=lambda types: self._run_default_import(rows, types, raw=raw, delim=delim, s_client=s_client),
             )
 
-    def _run_default_import(self, rows: list, confirmed_types: list) -> None:
+    def _run_default_import(
+        self,
+        rows: list,
+        confirmed_types: list,
+        raw: str = "",
+        delim: str | None = None,
+        s_client=None,
+    ) -> None:
         self._set_status("Importing…")
         self._run_in_thread(
             run_default_import, rows, confirmed_types, self.conn, self.username,
-            on_complete=lambda n: self._on_import_complete(n),
+            on_complete=lambda n: self._on_import_complete(n, raw=raw, delim=delim, s_client=s_client),
             on_error=self._on_worker_error,
         )
 
-    def _on_import_complete(self, count: int) -> None:
+    def _on_import_complete(
+        self,
+        count: int,
+        raw: str = "",
+        delim: str | None = None,
+        s_client=None,
+    ) -> None:
         self._set_status("Ready")
         messagebox.showinfo("Import Complete",
                             f"{count} selector(s) imported successfully.", parent=self)
+        if s_client is not None and raw:
+            self._do_s_search_after_import(raw, delim, s_client)
+
+    def _do_s_search_after_import(
+        self,
+        raw: str,
+        delim: str | None,
+        s_client,
+    ) -> None:
+        """Run an S-only search on the just-imported data and open a ResultsWindow.
+
+        Called synchronously from _on_import_complete (main thread). The
+        messagebox in _on_import_complete blocks until the user clicks OK, so
+        by the time this runs the import dialog is already dismissed.
+        """
+        query_terms = parse_raw_input(raw, delim)
+        self._set_status("Searching S…")
+        self._run_in_thread(
+            run_search, raw, delim, self.conn, s_client, False, True,
+            on_complete=lambda result: self._on_s_search_after_import_complete(
+                result, query_terms, s_client
+            ),
+            on_error=self._on_worker_error,
+        )
+
+    def _on_s_search_after_import_complete(
+        self,
+        result: tuple,
+        query_terms: list[str],
+        s_client,
+    ) -> None:
+        self._set_status("Ready")
+        gw_results, s_results = result
+        from ui.results_window import ResultsWindow
+        ResultsWindow(self, gw_results, s_results, query_terms, self.conn, s_client=s_client)
 
     # ------------------------------------------------------------------
     # Pull from Master
@@ -413,6 +693,15 @@ class GrayWolfeApp(tk.Tk):
         self._btn_search.configure(state=state)
         self._btn_add.configure(state=state)
         self._btn_pull.configure(state=state)
+        self._btn_clear_search.configure(state=state)
+        self._btn_clear_add.configure(state=state)
+        self._s_add_cb.configure(state=state)
+        if busy:
+            self._s_add_token_entry.configure(state="disabled")
+            self._s_add_token_toggle_btn.configure(state="disabled")
+        else:
+            # Restore token entry state based on current checkbox value
+            self._on_s_add_toggle()
 
     def _run_in_thread(self, func, *args, on_complete=None, on_error=None) -> None:
         self._set_busy(True)

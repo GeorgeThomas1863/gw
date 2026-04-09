@@ -25,6 +25,7 @@ S_LINK_TEMPLATE: str = "https://S.Fnet.F/apps/desktop/#/main/serial/{unique_id}"
 S_BATCH_SIZE: int = 500
 S_RATE_LIMIT_SLEEP: int = 10      # seconds between batches
 S_TOKEN_MIN_LEN: int = 20
+S_TOKEN_HELP_URL: str = ""   # Set to your documentation URL for S token retrieval
 
 # ---------------------------------------------------------------------------
 # Selector types
