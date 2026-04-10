@@ -11,6 +11,7 @@ from collections.abc import Callable
 
 import requests
 
+from utils.logger import get_logger
 from config import (
     S_BATCH_SIZE,
     S_LINK_TEMPLATE,
@@ -29,6 +30,8 @@ from utils.errors import (
     GWError,
     raise_gw,
 )
+
+_log = get_logger(__name__)
 
 
 class SApiClient:
@@ -61,9 +64,6 @@ class SApiClient:
         Returns False (via GWError) only after all URLs have been tried.
         Logs network errors per-URL and continues to the next URL.
         """
-        import logging
-        _log = logging.getLogger(__name__)
-
         print("S token validation: testing against live API...")
         any_success = False
         for entry in S_VALIDATE_URLS:
@@ -151,6 +151,7 @@ class SApiClient:
             "limit": S_BATCH_SIZE,
             "start": start,
         }
+        response = None
         try:
             response = self.session.post(
                 S_SEARCH_URL,

@@ -52,6 +52,7 @@ def get_logger(name: str) -> logging.Logger:
         backupCount=30,
         encoding="utf-8",
         utc=False,
+        delay=True,
     )
     file_handler.suffix = "%Y-%m-%d"
     file_handler.setLevel(logging.DEBUG)
