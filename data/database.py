@@ -10,7 +10,13 @@ from datetime import datetime
 from pathlib import Path
 
 from config import ID_STRFTIME
-from utils.errors import ERR_DB_UPDATE, ERR_SELECTOR_DUPLICATE, GWError, raise_gw
+from utils.errors import (
+    ERR_DB_UPDATE,
+    ERR_SELECTOR_DUPLICATE,
+    ERR_TARGET_NOT_FOUND,
+    GWError,
+    raise_gw,
+)
 
 # ---------------------------------------------------------------------------
 # Sequence for generate_id — guarantees uniqueness even under rapid calls.
@@ -260,6 +266,40 @@ def update_target(
     conn.execute(
         f"UPDATE targets SET {set_clause} WHERE target_id = :_target_id",
         updates,
+    )
+    conn.commit()
+
+
+def update_target_id(
+    conn: sqlite3.Connection,
+    old_id: str,
+    new_id: str,
+    updated_by: str,
+) -> None:
+    """Rename a target's ID across targets and selectors tables atomically.
+
+    Raises GWError(ERR_TARGET_NOT_FOUND) if old_id doesn't exist.
+    Raises GWError(ERR_DB_UPDATE, "Target ID already exists") if new_id is already taken.
+    Uses PRAGMA defer_foreign_keys to defer FK constraint checks until COMMIT,
+    since selectors.target_id references targets(target_id).
+    """
+    # Validate old_id exists
+    if get_target(conn, old_id) is None:
+        raise_gw(ERR_TARGET_NOT_FOUND, f"Target '{old_id}' not found.")
+
+    # Validate new_id not taken
+    if get_target(conn, new_id) is not None:
+        raise_gw(ERR_DB_UPDATE, f"Target ID '{new_id}' already exists.")
+
+    # Defer FK checks until COMMIT so both updates can complete safely
+    conn.execute("PRAGMA defer_foreign_keys = ON")
+    conn.execute(
+        "UPDATE targets SET target_id = ?, last_updated = ?, last_updated_by = ? WHERE target_id = ?",
+        (new_id, now_iso(), updated_by, old_id),
+    )
+    conn.execute(
+        "UPDATE selectors SET target_id = ? WHERE target_id = ?",
+        (new_id, old_id),
     )
     conn.commit()
 

@@ -5,10 +5,11 @@ from __future__ import annotations
 
 import sqlite3
 import tkinter as tk
-from tkinter import messagebox, ttk
+from tkinter import messagebox, simpledialog, ttk
 from typing import Callable, Optional
 
-from data.database import get_current_user, get_target, update_target
+from data.database import get_current_user, get_target, update_target, update_target_id
+from ui import strings
 from utils.errors import GWError
 from utils.logger import get_logger
 
@@ -55,6 +56,9 @@ class TargetDetailsWindow(tk.Toplevel):
         self._id_var = tk.StringVar()
         ttk.Entry(main, textvariable=self._id_var, state="readonly",
                   width=22).grid(row=row, column=1, sticky="w", pady=3)
+        ttk.Button(main, text="Change ID", command=self._change_target_id, width=9).grid(
+            row=0, column=2, sticky="w", padx=(4, 0), pady=3
+        )
 
         row += 1
         ttk.Label(main, text="Target Name:").grid(row=row, column=0, sticky="w", pady=3)
@@ -110,7 +114,7 @@ class TargetDetailsWindow(tk.Toplevel):
         ttk.Button(btn_frame, text="Merge Target",
                    command=self._open_merge).pack(side="left", padx=4)
         ttk.Button(btn_frame, text="Reset",
-                   command=self._load_target).pack(side="left", padx=4)
+                   command=lambda: self._load_target(confirm=True)).pack(side="left", padx=4)
         ttk.Button(btn_frame, text="Save",
                    command=self._save).pack(side="left", padx=4)
         ttk.Button(btn_frame, text="Close",
@@ -120,7 +124,14 @@ class TargetDetailsWindow(tk.Toplevel):
     # Data load / save
     # ------------------------------------------------------------------
 
-    def _load_target(self) -> None:
+    def _load_target(self, confirm: bool = False) -> None:
+        if confirm:
+            proceed = messagebox.askyesno(
+                "Reset Target", strings.CONFIRM_RESET_TARGETS, parent=self
+            )
+            if not proceed:
+                return
+
         target = get_target(self.conn, self.target_id)
         if target is None:
             messagebox.showerror("Not Found",
@@ -178,6 +189,34 @@ class TargetDetailsWindow(tk.Toplevel):
                 self.on_save_complete(self.target_id)
             except Exception:
                 logger.exception("on_save_complete callback raised")
+
+    def _change_target_id(self) -> None:
+        if not messagebox.askyesno("Change Target ID", strings.WARN_CHANGE_TARGET_ID, parent=self):
+            return
+
+        new_id = simpledialog.askstring(
+            "New Target ID",
+            "Enter new target ID:",
+            initialvalue=self.target_id,
+            parent=self,
+        )
+        if not new_id or not new_id.strip() or new_id.strip() == self.target_id:
+            return
+
+        new_id = new_id.strip()
+        try:
+            update_target_id(self.conn, self.target_id, new_id, get_current_user())
+        except GWError as exc:
+            messagebox.showerror(f"Error [GW{exc.code}]", exc.message, parent=self)
+            return
+        except Exception as exc:
+            logger.exception("Unexpected error changing target ID")
+            messagebox.showerror("Unexpected Error", str(exc), parent=self)
+            return
+
+        self.target_id = new_id
+        self.title(f"Target Details — {new_id}")
+        self._load_target()  # reload with new ID (no confirm)
 
     # ------------------------------------------------------------------
     # Merge

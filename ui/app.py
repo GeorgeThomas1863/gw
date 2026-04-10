@@ -16,6 +16,7 @@ from core.import_data import detect_column_types, parse_import_input, run_defaul
 from core.search import parse_raw_input, run_search
 from data.database import get_current_user
 from data.sync import pull_from_master
+from ui import strings
 from utils.errors import GWError
 from utils.logger import get_logger
 
@@ -35,9 +36,6 @@ _SEARCH_MODE_OPTIONS = ("GW + S", "GW Only", "S Only")
 _IMPORT_MODE_OPTIONS = ("Default Import", "Unrelated Import")
 _TYPE_OPTIONS = ["Auto-Detect"] + list(config.SELECTOR_TYPES)
 _FONT_SIZE_OPTIONS = ("8", "9", "10", "11", "12", "14", "16", "18", "20")
-_SEARCH_PLACEHOLDER = "Search one or multiple selectors — paste as many as you want here."
-_ADD_DEFAULT_PLACEHOLDER = "Input or paste selectors to import here."
-_ADD_UNRELATED_PLACEHOLDER = "Input or paste unrelated (independent) selectors here."
 
 
 class GrayWolfeApp(tk.Tk):
@@ -53,6 +51,8 @@ class GrayWolfeApp(tk.Tk):
         self.resizable(True, True)
 
         self._result_queue: queue.Queue = queue.Queue()
+        self._ask_queue: queue.Queue = queue.Queue()
+        self._answer_queue: queue.Queue = queue.Queue()
 
         self._build_ui()
         self._poll_queue()
@@ -105,15 +105,20 @@ class GrayWolfeApp(tk.Tk):
         self._token_label.pack(side="left")
         self._token_var = tk.StringVar()
         self._token_entry = ttk.Entry(
-            token_row, textvariable=self._token_var, show="*", width=50,
+            token_row, textvariable=self._token_var, width=50,
         )
         self._token_entry.pack(side="left", padx=(4, 4), fill="x", expand=True)
+        self._setup_entry_placeholder(self._token_entry, strings.TOKEN_PLACEHOLDER)
         self._token_visible = False
         self._token_toggle_btn = ttk.Button(
             token_row, text="\U0001F441", width=3,
             command=self._toggle_token_visibility,
         )
         self._token_toggle_btn.pack(side="left")
+        self._token_entry._on_placeholder_restore = lambda: (  # type: ignore[attr-defined]
+            setattr(self, "_token_visible", False)
+            or self._token_toggle_btn.configure(text="\U0001F441")
+        )
         self._token_help_btn = ttk.Button(
             token_row, text="?", width=2,
             command=self._open_token_help,
@@ -162,11 +167,20 @@ class GrayWolfeApp(tk.Tk):
             ),
             add=True,
         )
-        self._setup_placeholder(self._search_text, lambda: _SEARCH_PLACEHOLDER)
+        self._setup_placeholder(self._search_text, lambda: strings.SEARCH_PLACEHOLDER)
 
-        # Row 4 — Search button (wider)
+        # Row 4 — disclaimer
+        ttk.Label(
+            frame,
+            text=strings.DISCLAIMER_SEARCH,
+            wraplength=480,
+            foreground="#666",
+            justify="left",
+        ).grid(row=4, column=0, columnspan=3, sticky="w", pady=(2, 4))
+
+        # Row 5 — Search button (was row 4)
         btn_row = ttk.Frame(frame)
-        btn_row.grid(row=4, column=0, columnspan=3, sticky="e", pady=(8, 0))
+        btn_row.grid(row=5, column=0, columnspan=3, sticky="e", pady=(8, 0))
         self._btn_search = ttk.Button(
             btn_row, text="Search", command=self._do_search, width=18,
         )
@@ -199,7 +213,7 @@ class GrayWolfeApp(tk.Tk):
         _add_font_cb.bind("<<ComboboxSelected>>", self._on_add_font_size_change)
         self._add_font_frame.grid_remove()
         self._add_font_revealed = False
-        self._add_current_placeholder = _ADD_DEFAULT_PLACEHOLDER
+        self._add_current_placeholder = strings.ADD_DEFAULT_PLACEHOLDER
         self._add_font = tkfont.nametofont("TkDefaultFont").copy()
         self._add_font.configure(size=11)
         self._add_text = tk.Text(frame, height=8, wrap="none", font=self._add_font)
@@ -269,15 +283,20 @@ class GrayWolfeApp(tk.Tk):
         self._s_add_token_label.pack(side="left", padx=(12, 0))
         self._s_add_token_var = tk.StringVar()
         self._s_add_token_entry = ttk.Entry(
-            s_add_row, textvariable=self._s_add_token_var, show="*", width=40,
+            s_add_row, textvariable=self._s_add_token_var, width=40,
         )
         self._s_add_token_entry.pack(side="left", padx=(4, 4))
+        self._setup_entry_placeholder(self._s_add_token_entry, strings.TOKEN_PLACEHOLDER)
         self._s_add_token_visible = False
         self._s_add_token_toggle_btn = ttk.Button(
             s_add_row, text="\U0001F441", width=3,
             command=self._toggle_s_add_token_visibility,
         )
         self._s_add_token_toggle_btn.pack(side="left")
+        self._s_add_token_entry._on_placeholder_restore = lambda: (  # type: ignore[attr-defined]
+            setattr(self, "_s_add_token_visible", False)
+            or self._s_add_token_toggle_btn.configure(text="\U0001F441")
+        )
 
         # Row 5 — Add Data button (shifted from row 4)
         btn_row = ttk.Frame(frame)
@@ -289,6 +308,15 @@ class GrayWolfeApp(tk.Tk):
             btn_row, text="Clear", command=self._clear_add, width=10,
         )
         self._btn_clear_add.pack(side="right", padx=(0, 6))
+
+        # Row 6 — disclaimer
+        ttk.Label(
+            frame,
+            text=strings.DISCLAIMER_ADD,
+            wraplength=480,
+            foreground="#666",
+            justify="left",
+        ).grid(row=6, column=0, columnspan=3, sticky="w", pady=(2, 4))
 
         self._on_import_mode_change()
         self._on_s_add_toggle()
@@ -330,7 +358,7 @@ class GrayWolfeApp(tk.Tk):
         self._type_override_label.configure(
             foreground="" if is_unrelated else "#aaa"
         )
-        new_ph = _ADD_UNRELATED_PLACEHOLDER if is_unrelated else _ADD_DEFAULT_PLACEHOLDER
+        new_ph = strings.ADD_UNRELATED_PLACEHOLDER if is_unrelated else strings.ADD_DEFAULT_PLACEHOLDER
         self._add_current_placeholder = new_ph
         if self._add_text.tag_ranges("placeholder"):
             self._add_text.delete("1.0", "end")
@@ -347,14 +375,16 @@ class GrayWolfeApp(tk.Tk):
 
     def _toggle_token_visibility(self) -> None:
         self._token_visible = not self._token_visible
-        self._token_entry.configure(show="" if self._token_visible else "*")
+        placeholder_active = getattr(self._token_entry, "_placeholder_active", False)
+        self._token_entry.configure(show="" if (self._token_visible or placeholder_active) else "*")
         self._token_toggle_btn.configure(
             text="\U0001F512" if self._token_visible else "\U0001F441"
         )
 
     def _toggle_s_add_token_visibility(self) -> None:
         self._s_add_token_visible = not self._s_add_token_visible
-        self._s_add_token_entry.configure(show="" if self._s_add_token_visible else "*")
+        placeholder_active = getattr(self._s_add_token_entry, "_placeholder_active", False)
+        self._s_add_token_entry.configure(show="" if (self._s_add_token_visible or placeholder_active) else "*")
         self._s_add_token_toggle_btn.configure(
             text="\U0001F512" if self._s_add_token_visible else "\U0001F441"
         )
@@ -472,6 +502,35 @@ class GrayWolfeApp(tk.Tk):
         widget.bind("<FocusOut>", on_focus_out, add=True)
         widget.bind("<Key>", on_key, add=True)
 
+    def _setup_entry_placeholder(self, entry: ttk.Entry, placeholder: str) -> None:
+        """Insert placeholder text (gray) in an Entry that clears on focus and restores when empty.
+
+        For password-style entries: shows placeholder unmasked (show=""), switches to
+        show="*" on first interaction, restores placeholder on empty focus-out.
+        """
+        entry._placeholder_active = True  # type: ignore[attr-defined]
+        entry.insert(0, placeholder)
+        entry.configure(foreground="#aaa", show="")
+
+        def on_focus_in(_event):
+            if getattr(entry, "_placeholder_active", False):
+                entry.delete(0, "end")
+                entry.configure(foreground="", show="*")
+                entry._placeholder_active = False  # type: ignore[attr-defined]
+
+        def on_focus_out(_event):
+            if not entry.get().strip():
+                entry.delete(0, "end")
+                entry.insert(0, placeholder)
+                entry.configure(foreground="#aaa", show="")
+                entry._placeholder_active = True  # type: ignore[attr-defined]
+                restore = getattr(entry, "_on_placeholder_restore", None)
+                if callable(restore):
+                    restore()
+
+        entry.bind("<FocusIn>", on_focus_in, add=True)
+        entry.bind("<FocusOut>", on_focus_out, add=True)
+
     def _get_text_widget_value(self, widget: tk.Text) -> str:
         """Return text content; returns empty string if placeholder is currently active."""
         if widget.tag_ranges("placeholder"):
@@ -480,7 +539,7 @@ class GrayWolfeApp(tk.Tk):
 
     def _clear_search(self) -> None:
         self._search_text.delete("1.0", "end")
-        self._search_text.insert("1.0", _SEARCH_PLACEHOLDER)
+        self._search_text.insert("1.0", strings.SEARCH_PLACEHOLDER)
         self._search_text.tag_add("placeholder", "1.0", "end-1c")
 
     def _clear_add(self) -> None:
@@ -509,7 +568,7 @@ class GrayWolfeApp(tk.Tk):
         s_client = None
         if search_s:
             token = self._token_var.get().strip()
-            if not token:
+            if not token or getattr(self._token_entry, "_placeholder_active", False):
                 messagebox.showwarning("S Token Required",
                                        "Paste your S API token to search S.", parent=self)
                 return
@@ -523,20 +582,39 @@ class GrayWolfeApp(tk.Tk):
         delim = _DELIMITER_OPTIONS[self._search_delim_var.get()]
         query_terms = parse_raw_input(raw, delim)
 
+        # Drain any stale answer left over from a previous timed-out ask_cb dialog
+        while True:
+            try:
+                self._answer_queue.get_nowait()
+            except queue.Empty:
+                break
+
+        def progress_cb(selector: str, idx: int, total: int) -> None:
+            self._result_queue.put(("progress", strings.rate_limit_text(selector, idx, total), None))
+
+        def ask_cb(selector: str, num_found: int) -> bool:
+            self._ask_queue.put((selector, num_found))
+            try:
+                return self._answer_queue.get(timeout=30)
+            except queue.Empty:
+                return False  # treat timeout as "skip"
+
         self._set_status("Searching…")
         self._run_in_thread(
             self._search_worker,
-            raw, delim, search_gw, search_s, s_client, query_terms,
+            raw, delim, search_gw, search_s, s_client, query_terms, progress_cb, ask_cb,
             on_complete=self._on_search_complete,
             on_error=self._on_worker_error,
         )
 
-    def _search_worker(self, raw, delim, search_gw, search_s, s_client, query_terms):
+    def _search_worker(self, raw, delim, search_gw, search_s, s_client, query_terms, progress_cb, ask_cb):
         gw_results, s_results = run_search(
             raw, delim, self.conn,
             s_client=s_client,
             search_gw=search_gw,
             search_s_flag=search_s,
+            progress_cb=progress_cb,
+            ask_cb=ask_cb,
         )
         return gw_results, s_results, query_terms, s_client
 
@@ -564,7 +642,7 @@ class GrayWolfeApp(tk.Tk):
         s_client = None
         if self._s_add_var.get():
             token = self._s_add_token_var.get().strip()
-            if not token:
+            if not token or getattr(self._s_add_token_entry, "_placeholder_active", False):
                 messagebox.showwarning(
                     "S Token Required",
                     "Paste your S API token to search S after import.",
@@ -584,7 +662,7 @@ class GrayWolfeApp(tk.Tk):
             self._set_status("Importing…")
             self._run_in_thread(
                 run_unrelated_import, raw, sel_type, self.conn, self.username, delim,
-                on_complete=lambda n: self._on_import_complete(n, raw=raw, delim=delim, s_client=s_client),
+                on_complete=lambda result: self._on_import_complete(result, raw=raw, delim=delim, s_client=s_client),
                 on_error=self._on_worker_error,
             )
         else:
@@ -611,20 +689,25 @@ class GrayWolfeApp(tk.Tk):
         self._set_status("Importing…")
         self._run_in_thread(
             run_default_import, rows, confirmed_types, self.conn, self.username,
-            on_complete=lambda n: self._on_import_complete(n, raw=raw, delim=delim, s_client=s_client),
+            on_complete=lambda result: self._on_import_complete(result, raw=raw, delim=delim, s_client=s_client),
             on_error=self._on_worker_error,
         )
 
     def _on_import_complete(
         self,
-        count: int,
+        result: tuple[int, int],
         raw: str = "",
         delim: str | None = None,
         s_client=None,
     ) -> None:
         self._set_status("Ready")
-        messagebox.showinfo("Import Complete",
-                            f"{count} selector(s) imported successfully.", parent=self)
+        inserted, skipped = result
+        submitted = inserted + skipped
+        messagebox.showinfo(
+            "Import Complete",
+            strings.import_result_text(submitted, inserted, skipped),
+            parent=self,
+        )
         if s_client is not None and raw:
             self._do_s_search_after_import(raw, delim, s_client)
 
@@ -641,9 +724,34 @@ class GrayWolfeApp(tk.Tk):
         by the time this runs the import dialog is already dismissed.
         """
         query_terms = parse_raw_input(raw, delim)
+
+        # Drain any stale answer left over from a previous timed-out ask_cb dialog
+        while True:
+            try:
+                self._answer_queue.get_nowait()
+            except queue.Empty:
+                break
+
+        def progress_cb(selector: str, idx: int, total: int) -> None:
+            self._result_queue.put(("progress", strings.rate_limit_text(selector, idx, total), None))
+
+        def ask_cb(selector: str, num_found: int) -> bool:
+            self._ask_queue.put((selector, num_found))
+            try:
+                return self._answer_queue.get(timeout=30)
+            except queue.Empty:
+                return False  # treat timeout as "skip"
+
+        def _s_search_worker():
+            return run_search(
+                raw, delim, self.conn, s_client, False, True,
+                progress_cb=progress_cb,
+                ask_cb=ask_cb,
+            )
+
         self._set_status("Searching S…")
         self._run_in_thread(
-            run_search, raw, delim, self.conn, s_client, False, True,
+            _s_search_worker,
             on_complete=lambda result: self._on_s_search_after_import_complete(
                 result, query_terms, s_client
             ),
@@ -721,11 +829,25 @@ class GrayWolfeApp(tk.Tk):
         try:
             while True:
                 status, payload, callback = self._result_queue.get_nowait()
-                self._set_busy(False)  # always re-enable before invoking callback
-                if status == "ok" and callback:
-                    callback(payload)
-                elif status == "err" and callback:
-                    callback(payload)
+                if status == "progress":
+                    if payload:
+                        self._set_status(payload)
+                else:
+                    self._set_busy(False)  # always re-enable before invoking callback
+                    if status == "ok" and callback:
+                        callback(payload)
+                    elif status == "err" and callback:
+                        callback(payload)
+        except queue.Empty:
+            pass
+        try:
+            selector, num_found = self._ask_queue.get_nowait()
+            answer = messagebox.askyesno(
+                "Large Search",
+                strings.search_check_text(selector, num_found),
+                parent=self,
+            )
+            self._answer_queue.put(answer)
         except queue.Empty:
             pass
         self.after(100, self._poll_queue)

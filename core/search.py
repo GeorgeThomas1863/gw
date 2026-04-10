@@ -7,6 +7,7 @@ from __future__ import annotations
 
 import logging
 import sqlite3
+from typing import Callable
 
 from config import INTERNAL_DELIM
 from core.type_engine import build_selector_clean, detect_selector_type
@@ -139,12 +140,23 @@ def search_graywolfe(selectors: list[str], conn: sqlite3.Connection) -> list[dic
 # search_s
 # ---------------------------------------------------------------------------
 
-def search_s(selectors: list[str], s_client) -> list[dict]:
+def search_s(
+    selectors: list[str],
+    s_client,
+    progress_cb: Callable[[str, int, int], None] | None = None,
+    ask_cb: Callable[[str, int], bool] | None = None,
+) -> list[dict]:
     """Call SApiClient.search for each selector, aggregate results.
 
     Validates the token against the live S API before issuing any queries.
     Each result dict has a 'selector' field with the search term.
     Returns flat list. On per-selector error, logs warning and continues.
+
+    Args:
+        selectors: List of selector values to search.
+        s_client: SApiClient instance.
+        progress_cb: Optional callback(selector, idx, total) for rate limit progress.
+        ask_cb: Optional callback(selector, num_found) for continuing on rate limit.
     """
     if not selectors:
         return []
@@ -152,9 +164,16 @@ def search_s(selectors: list[str], s_client) -> list[dict]:
     s_client.validate_token()
 
     results: list[dict] = []
-    for value in selectors:
+    for i, value in enumerate(selectors):
+        def _rate_cb(v=value, idx=i, tot=len(selectors)):
+            if progress_cb is not None:
+                progress_cb(v, idx, tot)
+
+        def _ask(q, n):
+            return ask_cb(q, n) if ask_cb is not None else True
+
         try:
-            batch = s_client.search(value)
+            batch = s_client.search(value, on_rate_limit=_rate_cb, ask_continue=_ask)
             for item in batch:
                 item["selector"] = value
                 results.append(item)
@@ -175,12 +194,24 @@ def run_search(
     s_client=None,
     search_gw: bool = True,
     search_s_flag: bool = True,
+    progress_cb: Callable[[str, int, int], None] | None = None,
+    ask_cb: Callable[[str, int], bool] | None = None,
 ) -> tuple[list[dict], list[dict]]:
     """Main search entry point.
 
     Returns (gw_results, s_results). Either list may be empty if flag is False
     or s_client is None.
     Raises GWError(ERR_EMPTY_SEARCH) if raw_input is blank after parsing.
+
+    Args:
+        raw_input: Raw search input string.
+        delimiter: Optional delimiter; auto-detected if None.
+        conn: SQLite connection for GrayWolfe search.
+        s_client: Optional SApiClient for S API search.
+        search_gw: Whether to search GrayWolfe local DB.
+        search_s_flag: Whether to search S API.
+        progress_cb: Optional callback(selector, idx, total) for rate limit progress.
+        ask_cb: Optional callback(selector, num_found) for continuing on rate limit.
     """
     selectors = parse_raw_input(raw_input, delimiter)
 
@@ -194,6 +225,6 @@ def run_search(
         gw_results = search_graywolfe(selectors, conn)
 
     if search_s_flag and s_client is not None:
-        s_results = search_s(selectors, s_client)
+        s_results = search_s(selectors, s_client, progress_cb, ask_cb)
 
     return gw_results, s_results

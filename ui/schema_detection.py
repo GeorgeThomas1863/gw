@@ -4,10 +4,11 @@ ui/schema_detection.py — Modal dialog for confirming column types during defau
 from __future__ import annotations
 
 import tkinter as tk
-from tkinter import ttk
+from tkinter import messagebox, ttk
 from typing import Callable
 
 from config import SELECTOR_TYPES
+from ui import strings
 from utils.logger import get_logger
 
 logger = get_logger(__name__)
@@ -118,11 +119,40 @@ class SchemaDetectionDialog(tk.Toplevel):
         confirmed_types = [cb.get() for cb in self._combos]
         logger.debug("Schema confirmed: %s", confirmed_types)
 
+        # typeNull check: columns where GW couldn't detect a type (confidence == 0.0)
+        for col_idx, info in enumerate(self.detected_types):
+            if col_idx >= len(self._combos):
+                break
+            if info.get("confidence", 0.0) == 0.0 and confirmed_types[col_idx] != "null":
+                sample = next(
+                    (r[col_idx] for r in self.rows if col_idx < len(r) and r[col_idx].strip()),
+                    f"Column {col_idx + 1}"
+                )
+                yes = messagebox.askyesno(
+                    "Undetected Type", strings.type_null_text(sample), parent=self
+                )
+                if not yes:
+                    return  # user wants to fix it; dialog stays open
+                confirmed_types[col_idx] = "null"  # user chose to skip this column
+
+        # typeWrong check: columns where the user overrode a high-confidence detection (>= 50%)
+        for col_idx, (cb, info) in enumerate(zip(self._combos, self.detected_types)):
+            if cb.get() != info.get("type", "other") and info.get("confidence", 0.0) >= 0.5:
+                sample = next(
+                    (r[col_idx] for r in self.rows if col_idx < len(r) and r[col_idx].strip()),
+                    f"Column {col_idx + 1}"
+                )
+                yes = messagebox.askyesno(
+                    "Type Override", strings.type_wrong_text(sample, cb.get()), parent=self
+                )
+                if not yes:
+                    cb.set(info["type"])  # revert the combo to detected type
+                    return               # abort submit; dialog stays open for user to fix
+
         try:
             self.on_confirm(confirmed_types)
         except Exception as exc:
             logger.exception("on_confirm callback raised")
-            from tkinter import messagebox
             messagebox.showerror("Import Error", str(exc), parent=self)
             return
 

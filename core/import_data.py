@@ -147,12 +147,12 @@ def run_unrelated_import(
     conn: sqlite3.Connection,
     username: str | None = None,
     delimiter: str | None = None,
-) -> int:
+) -> tuple[int, int]:
     """Import each selector independently (no target linking).
 
     sel_type is either a specific type or "auto" (auto-detect each value).
     Skips duplicates (logs warning, does not raise).
-    Returns count of successfully inserted selectors.
+    Returns (inserted, skipped) counts.
     """
     if username is None:
         username = get_current_user()
@@ -161,6 +161,7 @@ def run_unrelated_import(
     values = parse_raw_input(raw_input, delimiter)
 
     inserted = 0
+    skipped = 0
     for value in values:
         effective_type = detect_selector_type(value) if sel_type == "auto" else sel_type
         sel_dict = _make_selector_dict(value, effective_type, username)
@@ -174,10 +175,11 @@ def run_unrelated_import(
         except GWError as exc:
             if exc.code == ERR_SELECTOR_DUPLICATE:
                 logger.warning("run_unrelated_import: duplicate skipped — %s", exc)
+                skipped += 1
             else:
                 raise
 
-    return inserted
+    return inserted, skipped
 
 
 # ---------------------------------------------------------------------------
@@ -189,7 +191,7 @@ def run_default_import(
     confirmed_types: list[str],
     conn: sqlite3.Connection,
     username: str | None = None,
-) -> int:
+) -> tuple[int, int]:
     """Process each row: insert selectors, resolve targets via 3-case logic.
 
     For each row:
@@ -203,12 +205,13 @@ def run_default_import(
        - 2+: merge_targets (fold all into first), link all row selectors to surviving target
 
     A row with only 1 column does NOT do target linking (mirrors VBA colMax >= 2).
-    Returns total count of inserted selectors.
+    Returns (total_inserted, total_skipped) counts.
     """
     if username is None:
         username = get_current_user()
 
     total_inserted = 0
+    total_skipped = 0
 
     for row in rows:
         # Track the selector_clean values inserted this round (for linking)
@@ -243,6 +246,7 @@ def run_default_import(
             except GWError as exc:
                 if exc.code == ERR_SELECTOR_DUPLICATE:
                     logger.warning("run_default_import: duplicate skipped — %s", exc)
+                    total_skipped += 1
                     # row_values already has this value (appended above); do not append again
                 else:
                     raise
@@ -271,7 +275,7 @@ def run_default_import(
                 merge_targets(survivor_id, absorb_id, conn, username=username)
             _link_selectors_to_target(conn, inserted_cleans, survivor_id)
 
-    return total_inserted
+    return total_inserted, total_skipped
 
 
 def _link_selectors_to_target(

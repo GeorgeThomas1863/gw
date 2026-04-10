@@ -7,6 +7,7 @@ from __future__ import annotations
 
 import time
 import webbrowser
+from collections.abc import Callable
 
 import requests
 
@@ -90,12 +91,27 @@ class SApiClient:
         print("S token validation: OK")
         return True
 
-    def search(self, query: str) -> list[dict]:
+    def search(
+        self,
+        query: str,
+        on_rate_limit: Callable[[], None] | None = None,
+        ask_continue: Callable[[str, int], bool] | None = None,
+    ) -> list[dict]:
         """Search S API for query. Handles pagination (500/batch).
 
-        Sleeps S_RATE_LIMIT_SLEEP seconds between batches (not after last batch).
-        Returns flat list of parsed result dicts.
-        Raises GWError on error.
+        Args:
+            query: Search query string.
+            on_rate_limit: Optional callback invoked before each rate-limit sleep.
+            ask_continue: Optional callback invoked after first batch if more results exist.
+                         Receives (query, num_found) and returns bool. If False, stops pagination.
+
+        Behavior:
+            - Fetches first batch and checks num_found.
+            - If ask_continue is provided and num_found > S_BATCH_SIZE:
+              calls ask_continue(query, num_found). If it returns False, returns first batch only.
+            - For each subsequent batch: calls on_rate_limit() if provided, then sleeps.
+            - Returns flat list of parsed result dicts.
+            - Raises GWError on error.
         """
         results: list[dict] = []
         start = 0
@@ -108,7 +124,14 @@ class SApiClient:
 
         start += S_BATCH_SIZE
 
+        # Check if user wants to continue pagination
+        if num_found > S_BATCH_SIZE and ask_continue is not None:
+            if not ask_continue(query, num_found):
+                return results
+
         while start < num_found:
+            if on_rate_limit is not None:
+                on_rate_limit()
             time.sleep(S_RATE_LIMIT_SLEEP)
             batch = self._search_batch(query, start)
             for item in batch.get("items", []):
