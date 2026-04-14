@@ -37,6 +37,25 @@ _IMPORT_MODE_OPTIONS = ("Default Import", "Unrelated Import")
 _TYPE_OPTIONS = ["Auto-Detect"] + list(config.SELECTOR_TYPES)
 _FONT_SIZE_OPTIONS = ("8", "9", "10", "11", "12", "14", "16", "18", "20")
 
+_SEARCH_BORDER_COLOR = "#4472c4"
+_ADD_BORDER_COLOR    = "#70ad47"
+_BORDER_WIDTH        = 4
+_BORDER_RADIUS       = 12
+
+
+def _rounded_rect_points(x1: float, y1: float, x2: float, y2: float, r: float) -> list[float]:
+    """Return polygon points for a smooth rounded rectangle (for tk.Canvas smooth polygon)."""
+    return [
+        x1+r, y1,   x2-r, y1,
+        x2,   y1,   x2,   y1+r,
+        x2,   y2-r, x2,   y2,
+        x2,   y2,   x2-r, y2,
+        x1+r, y2,   x1,   y2,
+        x1,   y2,   x1,   y2-r,
+        x1,   y1+r, x1,   y1,
+        x1,   y1,   x1+r, y1,
+    ]
+
 
 class GrayWolfeApp(tk.Tk):
     """Root application window with Search and Add Data tabs."""
@@ -61,6 +80,48 @@ class GrayWolfeApp(tk.Tk):
     # UI construction
     # ------------------------------------------------------------------
 
+    def _get_bg(self) -> str:
+        """Return the actual hex background color of the root window."""
+        raw = self.cget("bg")
+        try:
+            r, g, b = self.winfo_rgb(raw)
+            return f"#{r >> 8:02x}{g >> 8:02x}{b >> 8:02x}"
+        except Exception:
+            return "#f0f0f0"
+
+    def _make_rounded_border(
+        self, parent: tk.Widget, color: str,
+        radius: int = _BORDER_RADIUS, border_width: int = _BORDER_WIDTH, padding: int = 10,
+    ) -> tuple[tk.Canvas, tk.Frame]:
+        bg = self._get_bg()
+        canvas = tk.Canvas(parent, bg=bg, highlightthickness=0)
+        inner = tk.Frame(canvas, bg=bg)
+        win_id = canvas.create_window(0, 0, anchor="nw", window=inner)
+
+        def _redraw(event: tk.Event | None = None) -> None:
+            w = canvas.winfo_width()
+            h = canvas.winfo_height()
+            if w < 4 or h < 4:
+                return
+            canvas.delete("rr")
+            half = border_width / 2
+            pts = _rounded_rect_points(half, half, w - half, h - half, radius)
+            canvas.create_polygon(
+                pts, smooth=True,
+                fill=bg, outline=color, width=border_width,
+                tags="rr",
+            )
+            inner_offset = border_width + padding
+            canvas.coords(win_id, inner_offset, inner_offset)
+            canvas.itemconfig(
+                win_id,
+                width=max(1, w - 2 * inner_offset),
+                height=max(1, h - 2 * inner_offset),
+            )
+
+        canvas.bind("<Configure>", _redraw)
+        return canvas, inner
+
     def _build_ui(self) -> None:
         self.notebook = ttk.Notebook(self)
         self.notebook.pack(fill="both", expand=True, padx=6, pady=6)
@@ -71,88 +132,107 @@ class GrayWolfeApp(tk.Tk):
     # ---- Search Tab ----
 
     def _build_search_tab(self) -> None:
-        frame = ttk.Frame(self.notebook, padding=10)
-        self.notebook.add(frame, text="Search")
-        frame.columnconfigure(1, weight=1)
+        tab_outer = ttk.Frame(self.notebook)
+        self.notebook.add(tab_outer, text="Search")
 
-        # Row 0 — options: Search mode (left), Delimiter (right)
-        opts = ttk.Frame(frame)
-        opts.grid(row=0, column=0, columnspan=3, sticky="ew", pady=(0, 4))
+        # Disclaimer at top
+        ttk.Label(
+            tab_outer,
+            text=strings.DISCLAIMER_SEARCH,
+            foreground="#555",
+            font=("TkDefaultFont", 9, "italic"),
+            wraplength=720,
+            justify="left",
+        ).pack(side="top", anchor="w", padx=8, pady=(6, 2))
 
-        ttk.Label(opts, text="Search:").pack(side="left")
+        # Rounded border canvas
+        canvas, inner = self._make_rounded_border(tab_outer, _SEARCH_BORDER_COLOR)
+        canvas.pack(fill="both", expand=True, padx=8, pady=(0, 8))
+
+        inner.columnconfigure(0, weight=1)
+        inner.rowconfigure(3, weight=1)
+
+        # Row 0 — Search Location label
+        ttk.Label(inner, text="Search Location", font=("TkDefaultFont", 10, "bold")).grid(
+            row=0, column=0, sticky="w", pady=(0, 4)
+        )
+
+        # Row 1 — loc_row: mode combobox | token entry (expand) | eye | help
+        loc_row = tk.Frame(inner, bg=self._get_bg())
+        loc_row.grid(row=1, column=0, sticky="ew", pady=(0, 8))
+        loc_row.columnconfigure(1, weight=1)
+
         self._search_mode_var = tk.StringVar(value="GW + S")
         search_mode_cb = ttk.Combobox(
-            opts, textvariable=self._search_mode_var,
+            loc_row, textvariable=self._search_mode_var,
             values=list(_SEARCH_MODE_OPTIONS),
             state="readonly", width=16,
         )
-        search_mode_cb.pack(side="left", padx=(4, 0))
+        search_mode_cb.grid(row=0, column=0, sticky="w")
         search_mode_cb.bind("<<ComboboxSelected>>", self._on_search_mode_change)
 
-        self._search_delim_var = tk.StringVar(value="Auto")
-        ttk.Combobox(
-            opts, textvariable=self._search_delim_var,
-            values=list(_DELIMITER_OPTIONS),
-            state="readonly", width=16,
-        ).pack(side="right", padx=(0, 0))
-        ttk.Label(opts, text="Delimiter:").pack(side="right", padx=(0, 4))
-
-        # Row 1 — S Token with eye toggle
-        token_row = ttk.Frame(frame)
-        token_row.grid(row=1, column=0, columnspan=3, sticky="ew", pady=(0, 6))
-
-        self._token_label = ttk.Label(token_row, text="S Token:")
-        self._token_label.pack(side="left")
         self._token_var = tk.StringVar()
-        self._token_entry = ttk.Entry(
-            token_row, textvariable=self._token_var, width=50,
-        )
-        self._token_entry.pack(side="left", padx=(4, 4), fill="x", expand=True)
+        self._token_entry = ttk.Entry(loc_row, textvariable=self._token_var, width=40)
+        self._token_entry.grid(row=0, column=1, sticky="ew", padx=(6, 0))
         self._setup_entry_placeholder(self._token_entry, strings.TOKEN_PLACEHOLDER)
         self._token_visible = False
+
         self._token_toggle_btn = ttk.Button(
-            token_row, text="\U0001F441", width=3,
+            loc_row, text="\U0001F441", width=3,
             command=self._toggle_token_visibility,
         )
-        self._token_toggle_btn.pack(side="left")
+        self._token_toggle_btn.grid(row=0, column=2, padx=(4, 0))
+
+        self._token_help_btn = ttk.Button(
+            loc_row, text="?", width=2,
+            command=self._open_token_help,
+        )
+        self._token_help_btn.grid(row=0, column=3, padx=(2, 0))
+
         self._token_entry._on_placeholder_restore = lambda: (  # type: ignore[attr-defined]
             setattr(self, "_token_visible", False)
             or self._token_toggle_btn.configure(text="\U0001F441")
         )
-        self._token_help_btn = ttk.Button(
-            token_row, text="?", width=2,
-            command=self._open_token_help,
-        )
-        self._token_help_btn.pack(side="left", padx=(2, 0))
 
-        # Row 2 — input label
-        ttk.Label(frame, text="Search Input:").grid(
-            row=2, column=0, sticky="w", pady=(0, 2),
+        # Row 2 — "ITW Selectors to Search" label (left) + Delimiter + Font (right)
+        lbl_row = tk.Frame(inner, bg=self._get_bg())
+        lbl_row.grid(row=2, column=0, sticky="ew", pady=(0, 2))
+        lbl_row.columnconfigure(0, weight=1)
+
+        ttk.Label(lbl_row, text="ITW Selectors to Search", font=("TkDefaultFont", 10, "bold")).grid(
+            row=0, column=0, sticky="w"
         )
-        self._search_font_frame = ttk.Frame(frame)
-        self._search_font_frame.grid(row=2, column=1, sticky="e", pady=(0, 2))
-        ttk.Label(self._search_font_frame, text="Font:").pack(side="left")
+
+        controls_frame = tk.Frame(lbl_row, bg=self._get_bg())
+        controls_frame.grid(row=0, column=1, sticky="e")
+
+        ttk.Label(controls_frame, text="Delimiter:").pack(side="left")
+        self._search_delim_var = tk.StringVar(value="Auto")
+        ttk.Combobox(
+            controls_frame, textvariable=self._search_delim_var,
+            values=list(_DELIMITER_OPTIONS), state="readonly", width=14,
+        ).pack(side="left", padx=(4, 12))
+
+        ttk.Label(controls_frame, text="Font:").pack(side="left")
         self._search_font_size_var = tk.StringVar(value="11")
-        _search_font_cb = ttk.Combobox(
-            self._search_font_frame, textvariable=self._search_font_size_var,
+        search_font_cb = ttk.Combobox(
+            controls_frame, textvariable=self._search_font_size_var,
             values=_FONT_SIZE_OPTIONS, state="readonly", width=4,
         )
-        _search_font_cb.pack(side="left", padx=(2, 0))
-        _search_font_cb.bind("<<ComboboxSelected>>", self._on_search_font_size_change)
-        self._search_font_frame.grid_remove()
-        self._search_font_revealed = False
+        search_font_cb.pack(side="left", padx=(2, 0))
+        search_font_cb.bind("<<ComboboxSelected>>", self._on_search_font_size_change)
+
+        self._search_font_revealed = True
 
         # Row 3 — text area + scrollbar
         self._search_font = tkfont.nametofont("TkDefaultFont").copy()
         self._search_font.configure(size=11)
-        self._search_text = tk.Text(frame, height=8, wrap="none", font=self._search_font)
-        self._search_text.grid(row=3, column=0, columnspan=2, sticky="nsew", pady=(0, 6))
-        frame.rowconfigure(3, weight=1)
+        self._search_text = tk.Text(inner, height=8, wrap="none", font=self._search_font)
+        self._search_text.grid(row=3, column=0, sticky="nsew", pady=(0, 6))
 
-        vsb = ttk.Scrollbar(frame, orient="vertical", command=self._search_text.yview)
-        vsb.grid(row=3, column=2, sticky="ns", pady=(0, 6))
+        vsb = ttk.Scrollbar(inner, orient="vertical", command=self._search_text.yview)
+        vsb.grid(row=3, column=1, sticky="ns", pady=(0, 6))
         self._search_text["yscrollcommand"] = vsb.set
-        self._search_text.bind("<Key>", self._reveal_search_font_control)
         self._search_text.bind(
             "<KeyRelease>",
             lambda _e: self._schedule_delim_detect(
@@ -169,61 +249,145 @@ class GrayWolfeApp(tk.Tk):
         )
         self._setup_placeholder(self._search_text, lambda: strings.SEARCH_PLACEHOLDER)
 
-        # Row 4 — disclaimer
-        ttk.Label(
-            frame,
-            text=strings.DISCLAIMER_SEARCH,
-            wraplength=480,
-            foreground="#666",
-            justify="left",
-        ).grid(row=4, column=0, columnspan=3, sticky="w", pady=(2, 4))
+        # Row 4 — buttons
+        btn_row = tk.Frame(inner, bg=self._get_bg())
+        btn_row.grid(row=4, column=0, columnspan=2, sticky="w", pady=(4, 0))
 
-        # Row 5 — Search button (was row 4)
-        btn_row = ttk.Frame(frame)
-        btn_row.grid(row=5, column=0, columnspan=3, sticky="e", pady=(8, 0))
-        self._btn_search = ttk.Button(
-            btn_row, text="Search", command=self._do_search, width=18,
+        self._btn_search = tk.Button(
+            btn_row, text="Submit",
+            bg=_SEARCH_BORDER_COLOR, fg="white",
+            activebackground="#2f5496",
+            relief="flat", padx=12, pady=6,
+            command=self._do_search,
         )
-        self._btn_search.pack(side="right")
+        self._btn_search.pack(side="left", padx=(0, 6))
+
         self._btn_clear_search = ttk.Button(
-            btn_row, text="Clear", command=self._clear_search, width=10,
+            btn_row, text="Clear", command=self._clear_search, width=12,
         )
-        self._btn_clear_search.pack(side="right", padx=(0, 6))
+        self._btn_clear_search.pack(side="left")
 
         self._on_search_mode_change()
 
     # ---- Add Data Tab ----
 
     def _build_add_tab(self) -> None:
-        frame = ttk.Frame(self.notebook, padding=10)
-        self.notebook.add(frame, text="Add Data")
-        frame.columnconfigure(1, weight=1)
+        tab_outer = ttk.Frame(self.notebook)
+        self.notebook.add(tab_outer, text="Add Selectors")
 
-        ttk.Label(frame, text="Import Input:").grid(
-            row=0, column=0, sticky="w", pady=(0, 2))
-        self._add_font_frame = ttk.Frame(frame)
-        self._add_font_frame.grid(row=0, column=1, sticky="e", pady=(0, 2))
-        ttk.Label(self._add_font_frame, text="Font:").pack(side="left")
+        # Disclaimer at top
+        ttk.Label(
+            tab_outer,
+            text=strings.DISCLAIMER_ADD,
+            foreground="#555",
+            font=("TkDefaultFont", 9, "italic"),
+            wraplength=720,
+            justify="left",
+        ).pack(side="top", anchor="w", padx=8, pady=(6, 2))
+
+        # Rounded border canvas
+        canvas, inner = self._make_rounded_border(tab_outer, _ADD_BORDER_COLOR)
+        canvas.pack(fill="both", expand=True, padx=8, pady=(0, 4))
+
+        inner.columnconfigure(0, weight=1)
+        inner.rowconfigure(4, weight=1)
+
+        # Row 0 — two-col header: "Import Mode" | "Selector Type"
+        ttk.Label(inner, text="Import Mode", font=("TkDefaultFont", 10, "bold")).grid(
+            row=0, column=0, sticky="w", pady=(0, 2)
+        )
+        ttk.Label(inner, text="Selector Type", font=("TkDefaultFont", 10, "bold")).grid(
+            row=0, column=1, sticky="w", pady=(0, 2), padx=(8, 0)
+        )
+
+        # Row 1 — import_mode_cb | type_override_cb
+        self._import_mode_var = tk.StringVar(value="Default Import")
+        mode_cb = ttk.Combobox(
+            inner, textvariable=self._import_mode_var,
+            values=list(_IMPORT_MODE_OPTIONS),
+            state="readonly", width=18,
+        )
+        mode_cb.grid(row=1, column=0, sticky="w", pady=(0, 6))
+        mode_cb.bind("<<ComboboxSelected>>", self._on_import_mode_change)
+
+        self._type_override_var = tk.StringVar(value="Auto-Detect")
+        self._type_override_cb = ttk.Combobox(
+            inner, textvariable=self._type_override_var,
+            values=_TYPE_OPTIONS, state="readonly", width=16,
+        )
+        self._type_override_cb.grid(row=1, column=1, sticky="w", pady=(0, 6), padx=(8, 0))
+        # Keep label reference for _on_import_mode_change foreground logic
+        self._type_override_label = ttk.Label(inner, text="")  # hidden placeholder for compat
+
+        # Row 2 — also_s_row: checkbox | token label | token entry | eye | ? | Delimiter | Font
+        also_row = tk.Frame(inner, bg=self._get_bg())
+        also_row.grid(row=2, column=0, columnspan=2, sticky="ew", pady=(6, 0))
+        also_row.columnconfigure(2, weight=1)
+
+        self._s_add_var = tk.BooleanVar(value=False)
+        self._s_add_cb = ttk.Checkbutton(
+            also_row, text="Also Search S?",
+            variable=self._s_add_var, command=self._on_s_add_toggle,
+        )
+        self._s_add_cb.grid(row=0, column=0, sticky="w")
+
+        self._s_add_token_label = ttk.Label(also_row, text="S Token:")
+        self._s_add_token_label.grid(row=0, column=1, padx=(10, 0), sticky="w")
+
+        self._s_add_token_var = tk.StringVar()
+        self._s_add_token_entry = ttk.Entry(also_row, textvariable=self._s_add_token_var, width=30)
+        self._s_add_token_entry.grid(row=0, column=2, sticky="ew", padx=(4, 0))
+        self._setup_entry_placeholder(self._s_add_token_entry, strings.TOKEN_PLACEHOLDER)
+        self._s_add_token_visible = False
+
+        self._s_add_token_toggle_btn = ttk.Button(
+            also_row, text="\U0001F441", width=3,
+            command=self._toggle_s_add_token_visibility,
+        )
+        self._s_add_token_toggle_btn.grid(row=0, column=3, padx=(4, 0))
+
+        s_add_help_btn = ttk.Button(also_row, text="?", width=2, command=lambda: None)
+        s_add_help_btn.grid(row=0, column=4, padx=(2, 0))
+
+        self._s_add_token_entry._on_placeholder_restore = lambda: (  # type: ignore[attr-defined]
+            setattr(self, "_s_add_token_visible", False)
+            or self._s_add_token_toggle_btn.configure(text="\U0001F441")
+        )
+
+        # Delimiter + Font on same row, right side
+        ttk.Label(also_row, text="Delimiter:").grid(row=0, column=5, padx=(14, 0), sticky="e")
+        self._add_delim_var = tk.StringVar(value="Auto")
+        ttk.Combobox(
+            also_row, textvariable=self._add_delim_var,
+            values=list(_DELIMITER_OPTIONS), state="readonly", width=14,
+        ).grid(row=0, column=6, padx=(4, 0))
+
+        ttk.Label(also_row, text="Font:").grid(row=0, column=7, padx=(10, 0), sticky="e")
         self._add_font_size_var = tk.StringVar(value="11")
-        _add_font_cb = ttk.Combobox(
-            self._add_font_frame, textvariable=self._add_font_size_var,
+        add_font_cb = ttk.Combobox(
+            also_row, textvariable=self._add_font_size_var,
             values=_FONT_SIZE_OPTIONS, state="readonly", width=4,
         )
-        _add_font_cb.pack(side="left", padx=(2, 0))
-        _add_font_cb.bind("<<ComboboxSelected>>", self._on_add_font_size_change)
-        self._add_font_frame.grid_remove()
-        self._add_font_revealed = False
+        add_font_cb.grid(row=0, column=8, padx=(2, 0))
+        add_font_cb.bind("<<ComboboxSelected>>", self._on_add_font_size_change)
+
+        self._add_font_revealed = True
+
+        # Row 3 — "ITW Selectors to Add to GrayWolfe" label (bold)
+        ttk.Label(inner, text="ITW Selectors to Add to GrayWolfe", font=("TkDefaultFont", 10, "bold")).grid(
+            row=3, column=0, columnspan=2, sticky="w", pady=(8, 2)
+        )
+
+        # Row 4 — text area + scrollbar
         self._add_current_placeholder = strings.ADD_DEFAULT_PLACEHOLDER
         self._add_font = tkfont.nametofont("TkDefaultFont").copy()
         self._add_font.configure(size=11)
-        self._add_text = tk.Text(frame, height=8, wrap="none", font=self._add_font)
-        self._add_text.grid(row=1, column=0, columnspan=2, sticky="nsew", pady=(0, 6))
-        frame.rowconfigure(1, weight=1)
+        self._add_text = tk.Text(inner, height=8, wrap="none", font=self._add_font)
+        self._add_text.grid(row=4, column=0, sticky="nsew", pady=(0, 6))
 
-        vsb = ttk.Scrollbar(frame, orient="vertical", command=self._add_text.yview)
-        vsb.grid(row=1, column=2, sticky="ns", pady=(0, 6))
+        vsb = ttk.Scrollbar(inner, orient="vertical", command=self._add_text.yview)
+        vsb.grid(row=4, column=1, sticky="ns", pady=(0, 6))
         self._add_text["yscrollcommand"] = vsb.set
-        self._add_text.bind("<Key>", self._reveal_add_font_control)
         self._add_text.bind(
             "<KeyRelease>",
             lambda _e: self._schedule_delim_detect(
@@ -240,83 +404,31 @@ class GrayWolfeApp(tk.Tk):
         )
         self._setup_placeholder(self._add_text, lambda: self._add_current_placeholder)
 
-        # Options row
-        opts = ttk.Frame(frame)
-        opts.grid(row=2, column=0, columnspan=2, sticky="ew")
+        # Row 5 — buttons
+        btn_row = tk.Frame(inner, bg=self._get_bg())
+        btn_row.grid(row=5, column=0, columnspan=2, sticky="w", pady=(4, 0))
 
-        ttk.Label(opts, text="Delimiter:").pack(side="left")
-        self._add_delim_var = tk.StringVar(value="Auto")
-        ttk.Combobox(opts, textvariable=self._add_delim_var,
-                     values=list(_DELIMITER_OPTIONS), state="readonly",
-                     width=16).pack(side="left", padx=(4, 12))
-
-        ttk.Label(opts, text="Mode:").pack(side="left")
-        self._import_mode_var = tk.StringVar(value="Default Import")
-        mode_cb = ttk.Combobox(opts, textvariable=self._import_mode_var,
-                               values=list(_IMPORT_MODE_OPTIONS),
-                               state="readonly", width=18)
-        mode_cb.pack(side="left", padx=(4, 12))
-        mode_cb.bind("<<ComboboxSelected>>", self._on_import_mode_change)
-
-        # Type override (Unrelated only)
-        type_row = ttk.Frame(frame)
-        type_row.grid(row=3, column=0, columnspan=2, sticky="ew", pady=(6, 0))
-        self._type_override_label = ttk.Label(type_row, text="Type Override:")
-        self._type_override_label.pack(side="left")
-        self._type_override_var = tk.StringVar(value="Auto-Detect")
-        self._type_override_cb = ttk.Combobox(
-            type_row, textvariable=self._type_override_var,
-            values=_TYPE_OPTIONS, state="readonly", width=16)
-        self._type_override_cb.pack(side="left", padx=(4, 0))
-
-        # Row 4 — S search after import
-        s_add_row = ttk.Frame(frame)
-        s_add_row.grid(row=4, column=0, columnspan=2, sticky="ew", pady=(6, 0))
-        self._s_add_var = tk.BooleanVar(value=False)
-        self._s_add_cb = ttk.Checkbutton(
-            s_add_row, text="Search S after import",
-            variable=self._s_add_var,
-            command=self._on_s_add_toggle,
+        self._btn_add = tk.Button(
+            btn_row, text="Submit",
+            bg=_ADD_BORDER_COLOR, fg="white",
+            activebackground="#507e32",
+            relief="flat", padx=12, pady=6,
+            command=self._do_add,
         )
-        self._s_add_cb.pack(side="left")
-        self._s_add_token_label = ttk.Label(s_add_row, text="S Token:")
-        self._s_add_token_label.pack(side="left", padx=(12, 0))
-        self._s_add_token_var = tk.StringVar()
-        self._s_add_token_entry = ttk.Entry(
-            s_add_row, textvariable=self._s_add_token_var, width=40,
-        )
-        self._s_add_token_entry.pack(side="left", padx=(4, 4))
-        self._setup_entry_placeholder(self._s_add_token_entry, strings.TOKEN_PLACEHOLDER)
-        self._s_add_token_visible = False
-        self._s_add_token_toggle_btn = ttk.Button(
-            s_add_row, text="\U0001F441", width=3,
-            command=self._toggle_s_add_token_visibility,
-        )
-        self._s_add_token_toggle_btn.pack(side="left")
-        self._s_add_token_entry._on_placeholder_restore = lambda: (  # type: ignore[attr-defined]
-            setattr(self, "_s_add_token_visible", False)
-            or self._s_add_token_toggle_btn.configure(text="\U0001F441")
-        )
+        self._btn_add.pack(side="left", padx=(0, 6))
 
-        # Row 5 — Add Data button (shifted from row 4)
-        btn_row = ttk.Frame(frame)
-        btn_row.grid(row=5, column=0, columnspan=2, sticky="e", pady=(8, 0))
-        self._btn_add = ttk.Button(btn_row, text="Add Data",
-                                    command=self._do_add, width=18)
-        self._btn_add.pack(side="right")
         self._btn_clear_add = ttk.Button(
-            btn_row, text="Clear", command=self._clear_add, width=10,
+            btn_row, text="Clear", command=self._clear_add, width=12,
         )
-        self._btn_clear_add.pack(side="right", padx=(0, 6))
+        self._btn_clear_add.pack(side="left")
 
-        # Row 6 — disclaimer
+        # Footer label
         ttk.Label(
-            frame,
-            text=strings.DISCLAIMER_ADD,
-            wraplength=480,
-            foreground="#666",
-            justify="left",
-        ).grid(row=6, column=0, columnspan=3, sticky="w", pady=(2, 4))
+            tab_outer,
+            text="Tool will auto search new inputs and make connections (inshaAllah)",
+            foreground="#777",
+            font=("TkDefaultFont", 9, "italic"),
+        ).pack(side="bottom", pady=(4, 6))
 
         self._on_import_mode_change()
         self._on_s_add_toggle()
@@ -349,15 +461,11 @@ class GrayWolfeApp(tk.Tk):
         self._token_entry.configure(state=state)
         self._token_toggle_btn.configure(state=state)
         self._token_help_btn.configure(state=state)
-        self._token_label.configure(foreground="" if needs_token else "#aaa")
 
     def _on_import_mode_change(self, event=None) -> None:
         mode = self._import_mode_var.get()
         is_unrelated = mode == "Unrelated Import"
         self._type_override_cb.configure(state="readonly" if is_unrelated else "disabled")
-        self._type_override_label.configure(
-            foreground="" if is_unrelated else "#aaa"
-        )
         new_ph = strings.ADD_UNRELATED_PLACEHOLDER if is_unrelated else strings.ADD_DEFAULT_PLACEHOLDER
         self._add_current_placeholder = new_ph
         if self._add_text.tag_ranges("placeholder"):
@@ -389,18 +497,8 @@ class GrayWolfeApp(tk.Tk):
             text="\U0001F512" if self._s_add_token_visible else "\U0001F441"
         )
 
-    def _reveal_search_font_control(self, event=None) -> None:
-        if not self._search_font_revealed:
-            self._search_font_revealed = True
-            self._search_font_frame.grid()
-
     def _on_search_font_size_change(self, event=None) -> None:
         self._search_font.configure(size=int(self._search_font_size_var.get()))
-
-    def _reveal_add_font_control(self, event=None) -> None:
-        if not self._add_font_revealed:
-            self._add_font_revealed = True
-            self._add_font_frame.grid()
 
     def _on_add_font_size_change(self, event=None) -> None:
         self._add_font.configure(size=int(self._add_font_size_var.get()))
@@ -638,7 +736,7 @@ class GrayWolfeApp(tk.Tk):
         mode = self._import_mode_var.get()
         delim = _DELIMITER_OPTIONS[self._add_delim_var.get()]
 
-        # Resolve S client if "Search S after import" is checked
+        # Resolve S client if "Also Search S?" is checked
         s_client = None
         if self._s_add_var.get():
             token = self._s_add_token_var.get().strip()

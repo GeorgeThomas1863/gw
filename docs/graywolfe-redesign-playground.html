@@ -1,0 +1,858 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>GrayWolfe — Redesign Playground</title>
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
+    font-size: 13px;
+    background: #1e1e1e;
+    color: #d4d4d4;
+    height: 100vh;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+  }
+
+  header {
+    background: #252526;
+    border-bottom: 1px solid #3c3c3c;
+    padding: 10px 18px;
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    flex-shrink: 0;
+  }
+  header h1 { font-size: 14px; font-weight: 600; color: #ccc; letter-spacing: .3px; }
+  header .tag {
+    font-size: 10px; background: #3a3a3a; color: #888; border-radius: 4px;
+    padding: 2px 7px; text-transform: uppercase; letter-spacing: .5px;
+  }
+
+  .workspace {
+    display: flex;
+    flex: 1;
+    overflow: hidden;
+  }
+
+  /* ─── CONTROLS ─── */
+  .controls {
+    width: 220px;
+    flex-shrink: 0;
+    background: #252526;
+    border-right: 1px solid #3c3c3c;
+    padding: 16px 14px;
+    overflow-y: auto;
+    display: flex;
+    flex-direction: column;
+    gap: 20px;
+  }
+  .ctrl-group h3 {
+    font-size: 10px;
+    text-transform: uppercase;
+    letter-spacing: .7px;
+    color: #777;
+    margin-bottom: 10px;
+    border-bottom: 1px solid #333;
+    padding-bottom: 5px;
+  }
+  .ctrl-row {
+    display: flex;
+    flex-direction: column;
+    gap: 5px;
+    margin-bottom: 10px;
+  }
+  .ctrl-row label { font-size: 12px; color: #bbb; }
+  .ctrl-row select, .ctrl-row input[type="range"] {
+    width: 100%;
+    background: #3c3c3c;
+    border: 1px solid #555;
+    border-radius: 3px;
+    color: #d4d4d4;
+    padding: 4px 6px;
+    font-size: 12px;
+    font-family: inherit;
+    cursor: pointer;
+  }
+  .ctrl-row select:focus, .ctrl-row select:hover { border-color: #777; outline: none; }
+  .range-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+  .range-row input[type="range"] { flex: 1; accent-color: #4472C4; }
+  .range-val { font-size: 11px; color: #888; min-width: 28px; text-align: right; }
+
+  .toggle-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-bottom: 8px;
+    cursor: pointer;
+  }
+  .toggle-row input[type="checkbox"] { accent-color: #4472C4; cursor: pointer; }
+  .toggle-row label { font-size: 12px; color: #bbb; cursor: pointer; }
+
+  .tab-btns {
+    display: flex;
+    gap: 6px;
+  }
+  .tab-btn {
+    flex: 1;
+    padding: 6px 0;
+    border: 1px solid #555;
+    border-radius: 4px;
+    background: #3c3c3c;
+    color: #bbb;
+    font-size: 11px;
+    cursor: pointer;
+    text-align: center;
+    transition: all .15s;
+  }
+  .tab-btn:hover { background: #4a4a4a; border-color: #777; }
+  .tab-btn.active-search { background: #1a3a6b; border-color: #4472C4; color: #7aacf8; }
+  .tab-btn.active-add    { background: #1a3b12; border-color: #70AD47; color: #8fd85a; }
+
+  /* ─── PREVIEW ─── */
+  .right-panel {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+  }
+
+  .preview-area {
+    flex: 1;
+    overflow: auto;
+    padding: 24px;
+    background: #2d2d2d;
+    display: flex;
+    justify-content: center;
+    align-items: flex-start;
+    min-height: 0;
+  }
+
+  /* ── Windows-style form ── */
+  .gw-window {
+    width: 820px;
+    background: #f0f0f0;
+    border: 1px solid #aaa;
+    box-shadow: 0 4px 20px rgba(0,0,0,.4);
+    display: flex;
+    flex-direction: column;
+    font-family: 'Segoe UI', Tahoma, sans-serif;
+    font-size: 12px;
+    color: #000;
+    user-select: none;
+    min-height: 680px;
+  }
+
+  /* title bar */
+  .gw-titlebar {
+    background: linear-gradient(to bottom, #d8d8d8 0%, #c8c8c8 100%);
+    border-bottom: 1px solid #aaa;
+    padding: 6px 10px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+  }
+  .gw-titlebar .title { font-size: 12px; font-weight: 600; color: #333; }
+  .gw-titlebar .winctrls { display: flex; gap: 4px; }
+  .gw-titlebar .winctrls span {
+    width: 16px; height: 16px;
+    background: #d0d0d0;
+    border: 1px solid #aaa;
+    border-radius: 2px;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 9px; cursor: pointer;
+  }
+
+  /* tab strip */
+  .gw-tabstrip {
+    background: #f0f0f0;
+    border-bottom: 1px solid #c0c0c0;
+    display: flex;
+    padding: 6px 6px 0;
+    gap: 2px;
+  }
+  .gw-tab {
+    padding: 8px 72px;
+    border: 1px solid #c0c0c0;
+    border-bottom: none;
+    background: #e0e0e0;
+    cursor: pointer;
+    font-size: 13px;
+    border-radius: 4px 4px 0 0;
+    color: #555;
+    position: relative;
+    bottom: -1px;
+  }
+  .gw-tab.active {
+    background: #f0f0f0;
+    border-color: #aaa;
+    border-bottom-color: #f0f0f0;
+    font-weight: 600;
+    color: #000;
+  }
+
+  /* tab body */
+  .gw-tabcontent {
+    padding: 8px 10px 12px;
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    min-height: 0;
+  }
+
+  /* disclaimer */
+  .gw-disclaimer {
+    font-size: 11px;
+    color: #555;
+    font-style: italic;
+    margin-bottom: 6px;
+    line-height: 1.4;
+  }
+  .gw-disclaimer strong { font-style: normal; }
+
+  /* colored border frame */
+  .gw-border-frame {
+    border-style: solid;
+    padding: 10px;
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    min-height: 0;
+  }
+
+  /* form controls */
+  .gw-label {
+    font-size: 11px;
+    font-weight: 700;
+    color: #222;
+    margin-bottom: 1px;
+  }
+  .gw-row {
+    display: flex;
+    align-items: center;
+    gap: 5px;
+    flex-wrap: nowrap;
+  }
+  .gw-select {
+    border: 1px solid #aaa;
+    background: #fff;
+    padding: 2px 4px;
+    font-size: 12px;
+    font-family: inherit;
+    color: #000;
+    height: 22px;
+  }
+  .gw-select.mode-sel { min-width: 140px; }
+  .gw-select.delim-sel { width: 70px; }
+  .gw-select.font-sel { width: 45px; }
+  .gw-select.import-sel { min-width: 170px; }
+  .gw-select.type-sel { min-width: 185px; }
+
+  .gw-entry {
+    border: 1px solid #aaa;
+    background: #fff;
+    padding: 2px 5px;
+    font-size: 12px;
+    font-family: inherit;
+    color: #aaa;
+    height: 22px;
+    flex: 1;
+    min-width: 0;
+  }
+  .gw-entry.disabled {
+    background: #e8e8e8;
+    color: #ccc;
+    border-color: #ccc;
+  }
+
+  .gw-btn-icon {
+    border: 1px solid #aaa;
+    background: #e8e8e8;
+    padding: 0 6px;
+    height: 22px;
+    font-size: 11px;
+    cursor: pointer;
+    display: flex; align-items: center; justify-content: center;
+    white-space: nowrap;
+    flex-shrink: 0;
+  }
+  .gw-btn-icon.question { color: #c00; font-weight: bold; border-color: #aaa; }
+  .gw-btn-icon.disabled { color: #ccc; background: #eee; cursor: default; }
+
+  .gw-inline-label { font-size: 11px; color: #444; white-space: nowrap; flex-shrink: 0; }
+  .gw-inline-label.disabled { color: #bbb; }
+
+  .gw-textarea {
+    border: 1px solid #aaa;
+    background: #fff;
+    padding: 6px;
+    font-size: 12px;
+    font-family: inherit;
+    color: #aaa;
+    flex: 1;
+    resize: none;
+    min-height: 260px;
+    line-height: 1.5;
+  }
+
+  /* checkbox */
+  .gw-check-row {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+  }
+  .gw-check-row input[type="checkbox"] { margin: 0; }
+  .gw-check-row label { font-size: 12px; color: #222; white-space: nowrap; }
+
+  /* button row */
+  .gw-btn-row {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 6px 0 4px;
+  }
+  .gw-submit-btn {
+    border: none;
+    color: #fff;
+    font-size: 14px;
+    font-family: inherit;
+    font-weight: 600;
+    padding: 9px 60px;
+    cursor: pointer;
+    min-width: 180px;
+  }
+  .gw-clear-btn {
+    border: 1px solid #aaa;
+    background: #e8e8e8;
+    color: #333;
+    font-size: 14px;
+    font-family: inherit;
+    padding: 8px 40px;
+    cursor: pointer;
+  }
+  .gw-clear-btn:hover { background: #d8d8d8; }
+
+  /* status bar */
+  .gw-statusbar {
+    background: #e8e8e8;
+    border-top: 1px solid #c0c0c0;
+    padding: 3px 8px;
+    display: flex;
+    align-items: center;
+    gap: 0;
+    font-size: 11px;
+    color: #333;
+    flex-shrink: 0;
+  }
+  .gw-statusbar .sep {
+    width: 1px;
+    background: #aaa;
+    height: 14px;
+    margin: 0 8px;
+  }
+  .gw-statusbar .pull-btn {
+    border: 1px solid #aaa;
+    background: #d8d8d8;
+    padding: 1px 8px;
+    font-size: 11px;
+    font-family: inherit;
+    cursor: pointer;
+  }
+
+  /* footer */
+  .gw-footer {
+    font-size: 11px;
+    color: #777;
+    font-style: italic;
+    text-align: center;
+    padding: 4px 0 6px;
+  }
+
+  /* two-col layout for import mode / type */
+  .gw-two-col {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 6px 12px;
+  }
+
+  /* right-side addon */
+  .gw-addon-right {
+    margin-left: auto;
+    display: flex;
+    align-items: center;
+    gap: 5px;
+    flex-shrink: 0;
+  }
+
+  /* ─── PROMPT OUTPUT ─── */
+  .prompt-panel {
+    background: #1e1e1e;
+    border-top: 1px solid #3c3c3c;
+    padding: 12px 16px;
+    flex-shrink: 0;
+    max-height: 130px;
+    overflow-y: auto;
+  }
+  .prompt-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 8px;
+  }
+  .prompt-header span { font-size: 10px; text-transform: uppercase; letter-spacing: .7px; color: #666; }
+  .copy-btn {
+    background: #3c3c3c;
+    border: 1px solid #555;
+    color: #ccc;
+    padding: 3px 10px;
+    border-radius: 3px;
+    font-size: 11px;
+    cursor: pointer;
+    font-family: inherit;
+  }
+  .copy-btn:hover { background: #4a4a4a; }
+  .copy-btn.copied { background: #1a3b12; border-color: #70AD47; color: #8fd85a; }
+  #prompt-output {
+    font-size: 12px;
+    color: #aaa;
+    line-height: 1.6;
+    font-family: inherit;
+  }
+</style>
+</head>
+<body>
+
+<header>
+  <h1>GrayWolfe Redesign</h1>
+  <span class="tag">Visual Playground</span>
+</header>
+
+<div class="workspace">
+
+  <!-- CONTROLS -->
+  <div class="controls">
+
+    <div class="ctrl-group">
+      <h3>Active Tab</h3>
+      <div class="tab-btns">
+        <div class="tab-btn active-search" id="tab-btn-search" onclick="setTab('search')">Search</div>
+        <div class="tab-btn" id="tab-btn-add" onclick="setTab('add')">Add Selectors</div>
+      </div>
+    </div>
+
+    <div class="ctrl-group">
+      <h3>Frame Border</h3>
+      <div class="ctrl-row">
+        <label>Thickness</label>
+        <div class="range-row">
+          <input type="range" min="1" max="4" step="1" value="2" id="border-thickness" oninput="update()">
+          <span class="range-val" id="border-thickness-val">2px</span>
+        </div>
+      </div>
+      <div class="ctrl-row">
+        <label>Corner radius <span style="color:#666;font-size:10px;">(Canvas in Python)</span></label>
+        <div class="range-row">
+          <input type="range" min="0" max="12" step="1" value="0" id="border-radius" oninput="update()">
+          <span class="range-val" id="border-radius-val">0px</span>
+        </div>
+      </div>
+    </div>
+
+    <div class="ctrl-group">
+      <h3>Search Tab</h3>
+      <div class="ctrl-row">
+        <label>Search Mode</label>
+        <select id="search-mode" onchange="update()">
+          <option value="both">Both (GW + S)</option>
+          <option value="gw">GW Only</option>
+          <option value="s">S Only</option>
+        </select>
+      </div>
+    </div>
+
+    <div class="ctrl-group">
+      <h3>Add Selectors Tab</h3>
+      <div class="toggle-row">
+        <input type="checkbox" id="also-search-s" onchange="update()">
+        <label for="also-search-s">Also Search S? (checked)</label>
+      </div>
+      <div class="ctrl-row">
+        <label>Import Mode</label>
+        <select id="import-mode" onchange="update()">
+          <option value="unrelated">Unrelated [Bulk]</option>
+          <option value="default">Default [Table]</option>
+        </select>
+      </div>
+    </div>
+
+    <div class="ctrl-group">
+      <h3>Colors</h3>
+      <div class="ctrl-row">
+        <label>Search border</label>
+        <input type="color" id="search-color" value="#4472C4" onchange="update()" style="width:100%;height:28px;border:1px solid #555;background:#3c3c3c;cursor:pointer;border-radius:3px;">
+      </div>
+      <div class="ctrl-row">
+        <label>Add border</label>
+        <input type="color" id="add-color" value="#70AD47" onchange="update()" style="width:100%;height:28px;border:1px solid #555;background:#3c3c3c;cursor:pointer;border-radius:3px;">
+      </div>
+    </div>
+
+  </div>
+
+  <!-- RIGHT PANEL: preview + prompt -->
+  <div class="right-panel">
+
+    <div class="preview-area">
+      <div class="gw-window" id="gw-window">
+
+        <!-- Title bar -->
+        <div class="gw-titlebar">
+          <span class="title">GrayWolfe v2.0.0</span>
+          <div class="winctrls">
+            <span>─</span><span>□</span><span>✕</span>
+          </div>
+        </div>
+
+        <!-- Tab strip -->
+        <div class="gw-tabstrip">
+          <div class="gw-tab active" id="tab-search" onclick="setTab('search')">Search</div>
+          <div class="gw-tab" id="tab-add" onclick="setTab('add')">Add Selectors</div>
+        </div>
+
+        <!-- ═══ SEARCH TAB ═══ -->
+        <div class="gw-tabcontent" id="content-search">
+          <div class="gw-disclaimer">
+            <strong>DISCLAIMER:</strong> GrayWolfe is NOT an F data repository and does NOT have unique I data.
+            GrayWolfe queries / displays data from the F's official data repository.
+          </div>
+
+          <div class="gw-border-frame" id="search-frame">
+            <div>
+              <div class="gw-label">Search Location</div>
+              <div class="gw-row" style="margin-top:3px;flex-wrap:nowrap;overflow:hidden;">
+                <select class="gw-select mode-sel" id="preview-search-mode" onchange="syncSearchMode()" style="flex-shrink:0;">
+                  <option>Both (GW + S)</option>
+                  <option>GW Only</option>
+                  <option>S Only</option>
+                </select>
+                <input class="gw-entry" id="search-token-entry" type="text" placeholder="[Paste YOUR S API Token HERE]" style="font-style:italic;flex:1;min-width:60px;">
+                <div class="gw-btn-icon" id="search-token-eye" title="Show/hide token" style="flex-shrink:0;">👁</div>
+                <div class="gw-btn-icon question" id="search-token-q" title="Token help" style="flex-shrink:0;">?</div>
+                <div class="gw-inline-label" style="margin-left:8px;flex-shrink:0;">Delimiter:</div>
+                <select class="gw-select delim-sel" style="flex-shrink:0;">
+                  <option>Auto</option>
+                  <option>Tab</option>
+                  <option>Comma</option>
+                  <option>Semicolon</option>
+                  <option>Pipe</option>
+                </select>
+              </div>
+            </div>
+
+            <div style="flex:1;display:flex;flex-direction:column;gap:4px;min-height:0;">
+              <div class="gw-row" style="justify-content:space-between;align-items:baseline;">
+                <div class="gw-label">ITW Selectors to Search</div>
+                <div style="display:flex;align-items:center;gap:4px;">
+                  <div class="gw-inline-label">Font:</div>
+                  <select class="gw-select font-sel">
+                    <option>11</option><option>9</option><option>10</option>
+                    <option>12</option><option>14</option>
+                  </select>
+                </div>
+              </div>
+              <textarea class="gw-textarea" placeholder="Search one or multiple I selectors. Input / paste as many as you want HERE." style="flex:1;"></textarea>
+            </div>
+
+            <div class="gw-btn-row">
+              <button class="gw-submit-btn" id="search-submit-btn">Submit</button>
+              <button class="gw-clear-btn">Clear</button>
+            </div>
+          </div>
+        </div>
+
+        <!-- ═══ ADD SELECTORS TAB ═══ -->
+        <div class="gw-tabcontent" id="content-add" style="display:none;">
+          <div class="gw-disclaimer">
+            <strong>DISCLAIMER:</strong> Only add selectors ALREADY IN S; any selector not ALREADY IN S
+            is auto deleted and removed from GrayWolfe.
+          </div>
+
+          <div class="gw-border-frame" id="add-frame">
+
+            <div class="gw-two-col">
+              <div>
+                <div class="gw-label">Import Mode</div>
+                <select class="gw-select import-sel" id="preview-import-mode" style="width:100%;margin-top:3px;" onchange="syncImportMode()">
+                  <option>Unrelated [Bulk]</option>
+                  <option>Default [Table]</option>
+                </select>
+              </div>
+              <div>
+                <div class="gw-label">Selector Type</div>
+                <select class="gw-select type-sel" id="type-sel" style="width:100%;margin-top:3px;">
+                  <option>Auto Detect [decent accuracy]</option>
+                  <option>email</option>
+                  <option>phone</option>
+                  <option>ip</option>
+                  <option>address</option>
+                  <option>name</option>
+                  <option>other</option>
+                </select>
+              </div>
+            </div>
+
+            <div class="gw-row" style="gap:5px;flex-wrap:nowrap;overflow:hidden;">
+              <div class="gw-check-row" style="flex-shrink:0;">
+                <input type="checkbox" id="preview-also-s" onchange="syncAlsoS()">
+                <label for="preview-also-s">Also Search S?</label>
+              </div>
+              <div class="gw-inline-label" style="margin-left:4px;flex-shrink:0;">S Token:</div>
+              <input class="gw-entry" id="add-token-entry" type="text" placeholder="[Paste YOUR S API Token HERE]" style="font-style:italic;flex:1;min-width:60px;" disabled>
+              <div class="gw-btn-icon disabled" id="add-token-eye" title="Show/hide" style="flex-shrink:0;">👁</div>
+              <div class="gw-btn-icon question disabled" id="add-token-q" title="Token help" style="flex-shrink:0;">?</div>
+              <div class="gw-inline-label" style="margin-left:8px;flex-shrink:0;">Delimiter:</div>
+              <select class="gw-select delim-sel" style="flex-shrink:0;">
+                <option>Auto</option><option>Tab</option><option>Comma</option>
+              </select>
+              <div class="gw-inline-label" style="margin-left:4px;flex-shrink:0;">Font:</div>
+              <select class="gw-select font-sel" style="flex-shrink:0;">
+                <option>11</option><option>9</option><option>10</option><option>12</option>
+              </select>
+            </div>
+
+            <div style="flex:1;display:flex;flex-direction:column;gap:4px;min-height:0;">
+              <div class="gw-label">ITW Selectors to Add to GrayWolfe</div>
+              <textarea class="gw-textarea" id="add-textarea" placeholder="Input / Paste I selectors to add HERE. GrayWolfe auto detects data types. ONE RECORD SET PER LINE." style="flex:1;"></textarea>
+            </div>
+
+            <div class="gw-btn-row">
+              <button class="gw-submit-btn" id="add-submit-btn">Submit</button>
+              <button class="gw-clear-btn">Clear</button>
+            </div>
+          </div>
+
+          <div class="gw-footer">Tool will auto search new inputs and make connections (inshaAllah)</div>
+        </div>
+
+        <!-- Status bar (always visible) -->
+        <div class="gw-statusbar">
+          <span>User: username</span>
+          <div class="sep"></div>
+          <button class="pull-btn">Pull from Master</button>
+          <div class="sep"></div>
+          <span>Ready</span>
+        </div>
+
+      </div><!-- /gw-window -->
+    </div><!-- /preview-area -->
+
+    <!-- PROMPT OUTPUT -->
+    <div class="prompt-panel">
+      <div class="prompt-header">
+        <span>Generated Change Description</span>
+        <button class="copy-btn" id="copy-btn" onclick="copyPrompt()">Copy</button>
+      </div>
+      <div id="prompt-output"></div>
+    </div>
+
+  </div><!-- /right-panel -->
+</div><!-- /workspace -->
+
+<script>
+  const DEFAULTS = {
+    tab: 'search',
+    borderThickness: 2,
+    borderRadius: 0,
+    searchColor: '#4472C4',
+    addColor: '#70AD47',
+    searchMode: 'both',
+    alsoSearchS: false,
+    importMode: 'unrelated',
+  };
+
+  const state = { ...DEFAULTS };
+
+  function setTab(tab) {
+    state.tab = tab;
+    // update preview tabs
+    document.getElementById('tab-search').className = 'gw-tab' + (tab === 'search' ? ' active' : '');
+    document.getElementById('tab-add').className    = 'gw-tab' + (tab === 'add'    ? ' active' : '');
+    document.getElementById('content-search').style.display = tab === 'search' ? 'flex' : 'none';
+    document.getElementById('content-add').style.display    = tab === 'add'    ? 'flex' : 'none';
+    // update control buttons
+    document.getElementById('tab-btn-search').className = 'tab-btn' + (tab === 'search' ? ' active-search' : '');
+    document.getElementById('tab-btn-add').className    = 'tab-btn' + (tab === 'add'    ? ' active-add'    : '');
+    updatePrompt();
+  }
+
+  function syncSearchMode() {
+    const sel = document.getElementById('preview-search-mode');
+    const val = sel.value;
+    const needsToken = val !== 'GW Only';
+    const entry = document.getElementById('search-token-entry');
+    const eye = document.getElementById('search-token-eye');
+    const q = document.getElementById('search-token-q');
+    entry.className = 'gw-entry' + (needsToken ? '' : ' disabled');
+    entry.disabled = !needsToken;
+    eye.className = 'gw-btn-icon' + (needsToken ? '' : ' disabled');
+    q.className = 'gw-btn-icon question' + (needsToken ? '' : ' disabled');
+    // sync control panel
+    const modeMap = { 'Both (GW + S)': 'both', 'GW Only': 'gw', 'S Only': 's' };
+    state.searchMode = modeMap[val] || 'both';
+    document.getElementById('search-mode').value = state.searchMode;
+    updatePrompt();
+  }
+
+  function syncAlsoS() {
+    const checked = document.getElementById('preview-also-s').checked;
+    state.alsoSearchS = checked;
+    const entry = document.getElementById('add-token-entry');
+    const eye = document.getElementById('add-token-eye');
+    const q = document.getElementById('add-token-q');
+    entry.disabled = !checked;
+    entry.className = 'gw-entry' + (checked ? '' : ' disabled');
+    eye.className = 'gw-btn-icon' + (checked ? '' : ' disabled');
+    q.className = 'gw-btn-icon question' + (checked ? '' : ' disabled');
+    document.getElementById('also-search-s').checked = checked;
+    updatePrompt();
+  }
+
+  function syncImportMode() {
+    const val = document.getElementById('preview-import-mode').value;
+    state.importMode = val === 'Unrelated [Bulk]' ? 'unrelated' : 'default';
+    const typeEl = document.getElementById('type-sel');
+    typeEl.disabled = state.importMode !== 'unrelated';
+    document.getElementById('import-mode').value = state.importMode;
+    updatePrompt();
+  }
+
+  function update() {
+    state.borderThickness = parseInt(document.getElementById('border-thickness').value);
+    state.borderRadius = parseInt(document.getElementById('border-radius').value);
+    state.searchColor = document.getElementById('search-color').value;
+    state.addColor = document.getElementById('add-color').value;
+    state.searchMode = document.getElementById('search-mode').value;
+    state.alsoSearchS = document.getElementById('also-search-s').checked;
+    state.importMode = document.getElementById('import-mode').value;
+
+    // value labels
+    document.getElementById('border-thickness-val').textContent = state.borderThickness + 'px';
+    document.getElementById('border-radius-val').textContent = state.borderRadius + 'px';
+
+    const r = state.borderRadius + 'px';
+
+    // apply border + radius to frames
+    const sf = document.getElementById('search-frame');
+    sf.style.borderColor = state.searchColor;
+    sf.style.borderWidth = state.borderThickness + 'px';
+    sf.style.borderRadius = r;
+
+    const af = document.getElementById('add-frame');
+    af.style.borderColor = state.addColor;
+    af.style.borderWidth = state.borderThickness + 'px';
+    af.style.borderRadius = r;
+
+    // submit button colors + radius
+    const ssb = document.getElementById('search-submit-btn');
+    ssb.style.background = state.searchColor;
+    ssb.style.borderRadius = r;
+
+    const asb = document.getElementById('add-submit-btn');
+    asb.style.background = state.addColor;
+    asb.style.borderRadius = r;
+
+    // clear buttons radius
+    document.querySelectorAll('.gw-clear-btn').forEach(b => b.style.borderRadius = r);
+
+    // sync search mode dropdown in preview
+    const modeMap = { both: 'Both (GW + S)', gw: 'GW Only', s: 'S Only' };
+    const previewMode = document.getElementById('preview-search-mode');
+    previewMode.value = modeMap[state.searchMode];
+
+    // token enable/disable (search)
+    const needsToken = state.searchMode !== 'gw';
+    const te = document.getElementById('search-token-entry');
+    const tEye = document.getElementById('search-token-eye');
+    const tQ = document.getElementById('search-token-q');
+    te.disabled = !needsToken;
+    te.className = 'gw-entry' + (needsToken ? '' : ' disabled');
+    tEye.className = 'gw-btn-icon' + (needsToken ? '' : ' disabled');
+    tQ.className = 'gw-btn-icon question' + (needsToken ? '' : ' disabled');
+
+    // also search s
+    document.getElementById('preview-also-s').checked = state.alsoSearchS;
+    const ae = document.getElementById('add-token-entry');
+    const aEye = document.getElementById('add-token-eye');
+    const aQ = document.getElementById('add-token-q');
+    ae.disabled = !state.alsoSearchS;
+    ae.className = 'gw-entry' + (state.alsoSearchS ? '' : ' disabled');
+    aEye.className = 'gw-btn-icon' + (state.alsoSearchS ? '' : ' disabled');
+    aQ.className = 'gw-btn-icon question' + (state.alsoSearchS ? '' : ' disabled');
+
+    // import mode
+    const importMap = { unrelated: 'Unrelated [Bulk]', default: 'Default [Table]' };
+    document.getElementById('preview-import-mode').value = importMap[state.importMode];
+    document.getElementById('type-sel').disabled = state.importMode !== 'unrelated';
+
+    updatePrompt();
+  }
+
+  function updatePrompt() {
+    const parts = [];
+
+    parts.push(`Active tab: "${state.tab === 'search' ? 'Search' : 'Add Selectors'}"`);
+
+    if (state.searchColor !== DEFAULTS.searchColor)
+      parts.push(`Search border color changed to ${state.searchColor}`);
+    else
+      parts.push(`Search tab: blue border (${state.searchColor}), ${state.borderThickness}px`);
+
+    if (state.addColor !== DEFAULTS.addColor)
+      parts.push(`Add Selectors border color changed to ${state.addColor}`);
+    else
+      parts.push(`Add Selectors tab: green border (${state.addColor}), ${state.borderThickness}px`);
+
+    if (state.borderThickness !== DEFAULTS.borderThickness)
+      parts.push(`Border thickness: ${state.borderThickness}px`);
+
+    if (state.borderRadius > 0)
+      parts.push(`Corner radius: ${state.borderRadius}px (implemented via tk.Canvas rounded rectangle in Python)`);
+
+    const modeLabels = { both: 'Both (GW + S)', gw: 'GW Only', s: 'S Only' };
+    if (state.searchMode !== DEFAULTS.searchMode)
+      parts.push(`Search mode: "${modeLabels[state.searchMode]}" — token field is ${state.searchMode === 'gw' ? 'disabled' : 'enabled'}`);
+
+    if (state.alsoSearchS)
+      parts.push('"Also Search S?" checked — S Token field enabled in Add Selectors tab');
+
+    if (state.importMode !== DEFAULTS.importMode)
+      parts.push(`Import mode: "${state.importMode === 'default' ? 'Default [Table]' : 'Unrelated [Bulk]'}"`);
+
+    const desc = `Redesign the GrayWolfe main window: ${parts.join('. ')}.`;
+    document.getElementById('prompt-output').textContent = desc;
+  }
+
+  function copyPrompt() {
+    const text = document.getElementById('prompt-output').textContent;
+    navigator.clipboard.writeText(text).then(() => {
+      const btn = document.getElementById('copy-btn');
+      btn.textContent = 'Copied!';
+      btn.classList.add('copied');
+      setTimeout(() => { btn.textContent = 'Copy'; btn.classList.remove('copied'); }, 1500);
+    });
+  }
+
+  // init
+  update();
+</script>
+</body>
+</html>
