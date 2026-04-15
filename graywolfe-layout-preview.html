@@ -1,0 +1,562 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>GrayWolfe Add Data Tab — Layout Fix</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    background: #1e1e1e;
+    color: #ccc;
+    font-family: system-ui, sans-serif;
+    display: flex;
+    flex-direction: column;
+    height: 100vh;
+    overflow: hidden;
+  }
+
+  .shell {
+    display: flex;
+    flex: 1;
+    overflow: hidden;
+  }
+
+  /* Controls */
+  .controls {
+    width: 220px;
+    min-width: 220px;
+    background: #252525;
+    border-right: 1px solid #333;
+    padding: 20px 16px;
+    display: flex;
+    flex-direction: column;
+    gap: 20px;
+  }
+
+  .controls h2 {
+    font-size: 12px;
+    text-transform: uppercase;
+    letter-spacing: .08em;
+    color: #888;
+    margin-bottom: 8px;
+  }
+
+  .radio-group {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+  }
+
+  .radio-option {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    cursor: pointer;
+    padding: 8px 10px;
+    border-radius: 6px;
+    border: 1px solid #333;
+    background: #2a2a2a;
+    transition: background .15s, border-color .15s;
+    font-size: 13px;
+    user-select: none;
+  }
+
+  .radio-option:hover { background: #333; }
+  .radio-option.active { background: #1a3a1a; border-color: #4a9a4a; color: #7fc87f; }
+
+  .radio-dot {
+    width: 12px; height: 12px;
+    border-radius: 50%;
+    border: 2px solid #555;
+    flex-shrink: 0;
+    transition: all .15s;
+  }
+
+  .radio-option.active .radio-dot { border-color: #4a9a4a; background: #4a9a4a; }
+
+  .badge {
+    font-size: 10px;
+    padding: 2px 6px;
+    border-radius: 10px;
+    margin-left: auto;
+  }
+  .badge-before { background: #5a2020; color: #f88; }
+  .badge-after  { background: #1a4a1a; color: #8f8; }
+
+  .legend-item {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 12px;
+    color: #aaa;
+    margin-bottom: 6px;
+  }
+  .legend-swatch {
+    width: 14px; height: 14px;
+    border-radius: 2px;
+    flex-shrink: 0;
+  }
+
+  /* Preview area */
+  .preview-area {
+    flex: 1;
+    overflow: auto;
+    padding: 24px;
+    display: flex;
+    gap: 24px;
+    justify-content: center;
+    align-items: flex-start;
+  }
+
+  .panel-wrap {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 8px;
+  }
+
+  .panel-label {
+    font-size: 12px;
+    font-weight: 600;
+    letter-spacing: .04em;
+    padding: 4px 12px;
+    border-radius: 4px;
+    border: 1px solid;
+  }
+  .panel-label.before { background: #3a1a1a; border-color: #7a3030; color: #f88; }
+  .panel-label.after  { background: #1a3a1a; border-color: #3a8a3a; color: #8f8; }
+
+  .separator { width: 1px; background: #3a3a3a; align-self: stretch; flex-shrink: 0; }
+
+  /* Tkinter window */
+  .tk-window {
+    background: #f0f0f0;
+    border: 1px solid #999;
+    border-radius: 4px;
+    width: 540px;
+    box-shadow: 0 4px 20px rgba(0,0,0,.5);
+    font-family: 'Segoe UI', Tahoma, sans-serif;
+    font-size: 12px;
+    color: #000;
+  }
+
+  .tk-titlebar {
+    background: linear-gradient(180deg, #3c7cf5 0%, #2855c8 100%);
+    color: #fff;
+    padding: 6px 10px;
+    font-size: 12px;
+    font-weight: bold;
+    border-radius: 3px 3px 0 0;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+  }
+
+  .tk-titlebar-btns { display: flex; gap: 4px; }
+  .tk-btn-circle {
+    width: 12px; height: 12px;
+    border-radius: 50%;
+    border: 1px solid rgba(0,0,0,.3);
+  }
+
+  .tk-body { padding: 10px; }
+
+  .tk-tabs {
+    display: flex;
+    border-bottom: 1px solid #aaa;
+    margin-bottom: 8px;
+  }
+
+  .tk-tab {
+    padding: 5px 14px;
+    border: 1px solid transparent;
+    border-bottom: none;
+    border-radius: 3px 3px 0 0;
+    cursor: default;
+    background: #d4d4d4;
+    color: #444;
+    margin-right: 2px;
+    position: relative;
+    bottom: -1px;
+    font-size: 12px;
+  }
+  .tk-tab.active { background: #f0f0f0; border-color: #aaa; color: #000; font-weight: 500; }
+
+  .tk-inner { padding: 6px 4px 4px; }
+
+  .tk-radio-row { display: flex; gap: 16px; margin-bottom: 8px; }
+  .tk-radio { display: flex; align-items: center; gap: 4px; font-size: 12px; cursor: default; }
+  .tk-radio-dot {
+    width: 12px; height: 12px;
+    border-radius: 50%;
+    border: 2px solid #666;
+    background: white;
+    display: flex; align-items: center; justify-content: center;
+  }
+  .tk-radio-dot.checked::after {
+    content: '';
+    width: 5px; height: 5px;
+    border-radius: 50%;
+    background: #000;
+  }
+
+  .tk-row {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    margin-bottom: 6px;
+  }
+
+  .tk-checkbox {
+    width: 13px; height: 13px;
+    border: 2px solid #666;
+    background: white;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 9px;
+    flex-shrink: 0;
+  }
+
+  .tk-label { white-space: nowrap; font-size: 12px; }
+  .tk-label-bold { font-size: 12px; font-weight: bold; }
+
+  .tk-entry {
+    flex: 1;
+    height: 20px;
+    background: white;
+    border: 1px solid #999;
+    padding: 0 4px;
+    font-size: 11px;
+    font-family: inherit;
+    color: #999;
+    font-style: italic;
+    min-width: 0;
+  }
+
+  .tk-btn {
+    height: 20px;
+    min-width: 24px;
+    background: #e1e1e1;
+    border: 1px solid #aaa;
+    border-radius: 2px;
+    font-size: 11px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 0 5px;
+    white-space: nowrap;
+  }
+
+  .tk-select {
+    height: 20px;
+    background: white;
+    border: 1px solid #999;
+    padding: 0 4px;
+    font-size: 11px;
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    white-space: nowrap;
+  }
+
+  .tk-select-arrow { color: #666; font-size: 9px; }
+
+  .tk-title-row {
+    display: flex;
+    align-items: center;
+    margin-bottom: 4px;
+  }
+  .tk-title-row .t-left { flex: 1; }
+  .tk-title-row .t-right { display: flex; align-items: center; gap: 4px; }
+
+  .tk-textarea-wrap { display: flex; margin-top: 2px; }
+  .tk-textarea {
+    flex: 1;
+    height: 86px;
+    background: white;
+    border: 1px solid #999;
+    border-right: none;
+    padding: 4px;
+    font-size: 11px;
+    color: #999;
+    font-style: italic;
+  }
+
+  .tk-scrollbar {
+    width: 14px;
+    background: #d4d4d4;
+    border: 1px solid #999;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+  }
+  .tk-scroll-end {
+    width: 100%;
+    height: 13px;
+    background: #e1e1e1;
+    border: 1px solid #aaa;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 8px;
+  }
+  .tk-scroll-thumb {
+    flex: 1;
+    width: 10px;
+    margin: 2px auto;
+    background: #b0b0b0;
+    border: 1px solid #999;
+    border-radius: 1px;
+  }
+
+  /* Highlight overlays */
+  .hl-wrong {
+    outline: 2px dashed #f44;
+    outline-offset: 2px;
+    border-radius: 2px;
+  }
+  .hl-right {
+    outline: 2px solid #4a9;
+    outline-offset: 2px;
+    border-radius: 2px;
+    background: rgba(68,170,136,.06);
+  }
+
+  /* Visibility toggles */
+  .panel-wrap { display: none; }
+  .panel-wrap.visible { display: flex; }
+
+  /* Prompt bar */
+  .prompt-bar {
+    background: #252525;
+    border-top: 1px solid #333;
+    padding: 12px 20px;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    min-height: 54px;
+  }
+  .prompt-text {
+    flex: 1;
+    font-family: monospace;
+    font-size: 12px;
+    color: #bbb;
+    line-height: 1.5;
+  }
+  .copy-btn {
+    background: #333;
+    border: 1px solid #555;
+    color: #aaa;
+    padding: 5px 12px;
+    border-radius: 4px;
+    cursor: pointer;
+    font-size: 12px;
+    white-space: nowrap;
+    transition: background .15s;
+  }
+  .copy-btn:hover { background: #444; color: #fff; }
+  .copy-btn.copied { background: #1a4a1a; border-color: #3a8a3a; color: #8f8; }
+</style>
+</head>
+<body>
+
+<div class="shell">
+
+  <!-- Controls -->
+  <div class="controls">
+    <div>
+      <h2>View</h2>
+      <div class="radio-group">
+        <div class="radio-option" data-view="before" onclick="setView('before')">
+          <div class="radio-dot"></div>
+          Before only
+          <span class="badge badge-before">old</span>
+        </div>
+        <div class="radio-option" data-view="after" onclick="setView('after')">
+          <div class="radio-dot"></div>
+          After only
+          <span class="badge badge-after">fixed</span>
+        </div>
+        <div class="radio-option" data-view="both" onclick="setView('both')">
+          <div class="radio-dot"></div>
+          Side by side
+        </div>
+      </div>
+    </div>
+
+    <div>
+      <h2>Legend</h2>
+      <div class="legend-item">
+        <div class="legend-swatch" style="outline:2px dashed #f44;background:transparent;"></div>
+        <span>Wrong row position</span>
+      </div>
+      <div class="legend-item">
+        <div class="legend-swatch" style="outline:2px solid #4a9;background:rgba(68,170,136,.1);"></div>
+        <span>Correct row position</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- Preview -->
+  <div class="preview-area">
+
+    <!-- BEFORE panel -->
+    <div class="panel-wrap" id="panel-before">
+      <div class="panel-label before">BEFORE — dropdowns above the title (wrong)</div>
+      <div class="tk-window">
+        <div class="tk-titlebar">
+          <span>GrayWolfe</span>
+          <div class="tk-titlebar-btns">
+            <div class="tk-btn-circle" style="background:#f5c518;"></div>
+            <div class="tk-btn-circle" style="background:#33c926;"></div>
+            <div class="tk-btn-circle" style="background:#f54e42;"></div>
+          </div>
+        </div>
+        <div class="tk-body">
+          <div class="tk-tabs">
+            <div class="tk-tab">Search</div>
+            <div class="tk-tab active">Add Data</div>
+          </div>
+          <div class="tk-inner">
+            <div class="tk-radio-row">
+              <div class="tk-radio"><div class="tk-radio-dot checked"></div><span>Default Import</span></div>
+              <div class="tk-radio"><div class="tk-radio-dot"></div><span>Unrelated Import</span></div>
+            </div>
+            <!-- Row 2: checkbox + token + delimiter + font — all crammed together (wrong) -->
+            <div class="tk-row hl-wrong" title="Row 2 — delimiter/font are here, above the title">
+              <div class="tk-checkbox">&#10003;</div>
+              <span class="tk-label">Also Search S?</span>
+              <span class="tk-label" style="margin-left:8px;">S Token:</span>
+              <div class="tk-entry" style="max-width:110px;"></div>
+              <div class="tk-btn">&#128065;</div>
+              <div class="tk-btn">?</div>
+              <span class="tk-label" style="margin-left:8px;">Delimiter:</span>
+              <div class="tk-select"><span>Auto</span><span class="tk-select-arrow">&#9660;</span></div>
+              <span class="tk-label" style="margin-left:6px;">Font:</span>
+              <div class="tk-select" style="width:40px;"><span>11</span><span class="tk-select-arrow">&#9660;</span></div>
+            </div>
+            <!-- Row 3: title alone — below the dropdowns (wrong) -->
+            <div class="tk-row hl-wrong" title="Row 3 — title alone, below the dropdowns">
+              <span class="tk-label-bold">ITW Selectors to Add to GrayWolfe</span>
+            </div>
+            <div class="tk-textarea-wrap">
+              <div class="tk-textarea">paste selectors here&#8230;</div>
+              <div class="tk-scrollbar">
+                <div class="tk-scroll-end">&#9650;</div>
+                <div class="tk-scroll-thumb"></div>
+                <div class="tk-scroll-end">&#9660;</div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Separator (only shown in side-by-side) -->
+    <div class="separator" id="sep" style="display:none;"></div>
+
+    <!-- AFTER panel -->
+    <div class="panel-wrap" id="panel-after">
+      <div class="panel-label after">AFTER — title and dropdowns on the same row (fixed)</div>
+      <div class="tk-window">
+        <div class="tk-titlebar">
+          <span>GrayWolfe</span>
+          <div class="tk-titlebar-btns">
+            <div class="tk-btn-circle" style="background:#f5c518;"></div>
+            <div class="tk-btn-circle" style="background:#33c926;"></div>
+            <div class="tk-btn-circle" style="background:#f54e42;"></div>
+          </div>
+        </div>
+        <div class="tk-body">
+          <div class="tk-tabs">
+            <div class="tk-tab">Search</div>
+            <div class="tk-tab active">Add Data</div>
+          </div>
+          <div class="tk-inner">
+            <div class="tk-radio-row">
+              <div class="tk-radio"><div class="tk-radio-dot checked"></div><span>Default Import</span></div>
+              <div class="tk-radio"><div class="tk-radio-dot"></div><span>Unrelated Import</span></div>
+            </div>
+            <!-- Row 2: checkbox + token only — clean -->
+            <div class="tk-row" title="Row 2 — checkbox and token controls only">
+              <div class="tk-checkbox">&#10003;</div>
+              <span class="tk-label">Also Search S?</span>
+              <span class="tk-label" style="margin-left:8px;">S Token:</span>
+              <div class="tk-entry"></div>
+              <div class="tk-btn">&#128065;</div>
+              <div class="tk-btn">?</div>
+            </div>
+            <!-- Row 3: title LEFT + delimiter/font RIGHT on same row (correct) -->
+            <div class="tk-title-row hl-right" title="Row 3 — title and dropdowns share the same row">
+              <div class="t-left">
+                <span class="tk-label-bold">ITW Selectors to Add to GrayWolfe</span>
+              </div>
+              <div class="t-right">
+                <span class="tk-label">Delimiter:</span>
+                <div class="tk-select"><span>Auto</span><span class="tk-select-arrow">&#9660;</span></div>
+                <span class="tk-label" style="margin-left:6px;">Font:</span>
+                <div class="tk-select" style="width:40px;"><span>11</span><span class="tk-select-arrow">&#9660;</span></div>
+              </div>
+            </div>
+            <div class="tk-textarea-wrap" style="margin-top:4px;">
+              <div class="tk-textarea">paste selectors here&#8230;</div>
+              <div class="tk-scrollbar">
+                <div class="tk-scroll-end">&#9650;</div>
+                <div class="tk-scroll-thumb"></div>
+                <div class="tk-scroll-end">&#9660;</div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+  </div>
+</div>
+
+<!-- Prompt bar -->
+<div class="prompt-bar">
+  <div class="prompt-text" id="prompt-text"></div>
+  <button class="copy-btn" id="copy-btn" onclick="copyPrompt()">Copy</button>
+</div>
+
+<script>
+  var currentView = '';
+
+  var prompts = {
+    before: 'Before fix: Delimiter and Font dropdowns sit on Row 2 inside also_row — above the bold title on Row 3. Title and dropdowns are on separate rows.',
+    after: 'After fix: Row 3 is a lbl_row frame — bold title left-aligned, Delimiter + Font dropdowns right-aligned on the same row. Matches the Search tab pattern. also_row (Row 2) now holds only the S checkbox and token controls.',
+    both: 'Side-by-side comparison. Left (old): dropdowns above the title on Row 2. Right (fixed): title and dropdowns share Row 3, with the title on the left and dropdowns on the right.'
+  };
+
+  function setView(v) {
+    if (currentView === v) return;
+    currentView = v;
+
+    document.querySelectorAll('.radio-option').forEach(function(el) {
+      var active = el.dataset.view === v;
+      el.classList.toggle('active', active);
+      var dot = el.querySelector('.radio-dot');
+      dot.style.background = active ? '#4a9a4a' : '';
+      dot.style.borderColor = active ? '#4a9a4a' : '';
+    });
+
+    document.getElementById('panel-before').classList.toggle('visible', v === 'before' || v === 'both');
+    document.getElementById('panel-after').classList.toggle('visible', v === 'after' || v === 'both');
+    document.getElementById('sep').style.display = (v === 'both') ? 'block' : 'none';
+
+    document.getElementById('prompt-text').textContent = prompts[v];
+  }
+
+  function copyPrompt() {
+    var text = document.getElementById('prompt-text').textContent;
+    navigator.clipboard.writeText(text).then(function() {
+      var btn = document.getElementById('copy-btn');
+      btn.textContent = 'Copied!';
+      btn.classList.add('copied');
+      setTimeout(function() { btn.textContent = 'Copy'; btn.classList.remove('copied'); }, 1500);
+    });
+  }
+
+  setView('after');
+</script>
+</body>
+</html>

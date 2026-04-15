@@ -354,29 +354,35 @@ class GrayWolfeApp(tk.Tk):
             or self._s_add_token_toggle_btn.configure(text="\U0001F441")
         )
 
-        # Delimiter + Font on same row, right side
-        ttk.Label(also_row, text="Delimiter:").grid(row=0, column=5, padx=(14, 0), sticky="e")
-        self._add_delim_var = tk.StringVar(value="Auto")
-        ttk.Combobox(
-            also_row, textvariable=self._add_delim_var,
-            values=list(_DELIMITER_OPTIONS), state="readonly", width=14,
-        ).grid(row=0, column=6, padx=(4, 0))
-
-        ttk.Label(also_row, text="Font:").grid(row=0, column=7, padx=(10, 0), sticky="e")
-        self._add_font_size_var = tk.StringVar(value="11")
-        add_font_cb = ttk.Combobox(
-            also_row, textvariable=self._add_font_size_var,
-            values=_FONT_SIZE_OPTIONS, state="readonly", width=4,
-        )
-        add_font_cb.grid(row=0, column=8, padx=(2, 0))
-        add_font_cb.bind("<<ComboboxSelected>>", self._on_add_font_size_change)
-
         self._add_font_revealed = True
 
-        # Row 3 — "ITW Selectors to Add to GrayWolfe" label (bold)
-        ttk.Label(inner, text="ITW Selectors to Add to GrayWolfe", font=("TkDefaultFont", 10, "bold")).grid(
-            row=3, column=0, columnspan=2, sticky="w", pady=(8, 2)
+        # Row 3 — title (left) + Delimiter + Font (right)
+        lbl_row = tk.Frame(inner, bg=self._get_bg())
+        lbl_row.grid(row=3, column=0, columnspan=2, sticky="ew", pady=(8, 2))
+        lbl_row.columnconfigure(0, weight=1)
+
+        ttk.Label(lbl_row, text="ITW Selectors to Add to GrayWolfe", font=("TkDefaultFont", 10, "bold")).grid(
+            row=0, column=0, sticky="w"
         )
+
+        controls_frame = tk.Frame(lbl_row, bg=self._get_bg())
+        controls_frame.grid(row=0, column=1, sticky="e")
+
+        ttk.Label(controls_frame, text="Delimiter:").pack(side="left")
+        self._add_delim_var = tk.StringVar(value="Auto")
+        ttk.Combobox(
+            controls_frame, textvariable=self._add_delim_var,
+            values=list(_DELIMITER_OPTIONS), state="readonly", width=14,
+        ).pack(side="left", padx=(4, 12))
+
+        ttk.Label(controls_frame, text="Font:").pack(side="left")
+        self._add_font_size_var = tk.StringVar(value="11")
+        add_font_cb = ttk.Combobox(
+            controls_frame, textvariable=self._add_font_size_var,
+            values=_FONT_SIZE_OPTIONS, state="readonly", width=4,
+        )
+        add_font_cb.pack(side="left", padx=(2, 0))
+        add_font_cb.bind("<<ComboboxSelected>>", self._on_add_font_size_change)
 
         # Row 4 — text area + scrollbar
         self._add_current_placeholder = strings.ADD_DEFAULT_PLACEHOLDER
