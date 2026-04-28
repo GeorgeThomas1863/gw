@@ -14,7 +14,7 @@ from data.database import (
     now_iso,
     insert_target,
     get_target,
-    update_target,
+    update_target as _db_update_target,
     delete_target,
 )
 from src.type_engine import build_selector_clean, detect_selector_type
@@ -207,6 +207,4 @@ def update_target(
     if username is None:
         username = get_current_user()
 
-    # Import alias to avoid shadowing the local name at module level
-    from data.database import update_target as _db_update_target
     _db_update_target(conn, target_id, fields, username)

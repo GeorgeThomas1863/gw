@@ -16,6 +16,7 @@ sys.path.insert(0, str(Path(__file__).parent))
 
 import config
 from data.database import get_connection, initialize_schema, get_current_user
+from display.main import GrayWolfeApp
 from util.logger import get_logger
 
 log = get_logger(__name__)
@@ -45,15 +46,6 @@ def _resolve_local_db_path() -> Path:
 
 def main() -> None:
     """Initialize DB and launch the GUI."""
-    # Defer tkinter import so import errors surface clearly
-    try:
-        import tkinter as tk
-    except ImportError as exc:
-        print(f"ERROR: tkinter is required but not available: {exc}", file=sys.stderr)
-        sys.exit(1)
-
-    from display.main import GrayWolfeApp
-
     db_path = _resolve_local_db_path()
     log.info("Starting %s v%s — DB: %s", config.APP_NAME, config.APP_VERSION, db_path)
 

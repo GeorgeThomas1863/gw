@@ -10,6 +10,7 @@ import webbrowser
 from tkinter import ttk
 from typing import Optional
 
+from display.target_details import TargetDetailsWindow
 from util.logger import get_logger
 
 logger = get_logger(__name__)
@@ -361,7 +362,6 @@ class ResultsWindow(tk.Toplevel):
         target_id = tags[0] if tags else None
         if not target_id:
             return
-        from display.target_details import TargetDetailsWindow
         TargetDetailsWindow(self, self.conn, target_id)
 
     def _s_double_click(self, event: tk.Event) -> None:

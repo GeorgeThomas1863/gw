@@ -12,11 +12,14 @@ import webbrowser
 from tkinter import messagebox, ttk
 
 import config
+from data.s_api import SApiClient
+from data.sync import pull_from_master
+from data.database import get_current_user
+from display import strings
+from display.results_window import ResultsWindow
+from display.schema_detection import SchemaDetectionDialog
 from src.import_data import detect_column_types, parse_import_input, run_default_import, run_unrelated_import
 from src.search import parse_raw_input, run_search
-from data.database import get_current_user
-from data.sync import pull_from_master
-from display import strings
 from util.errors import GWError
 from util.logger import get_logger
 
@@ -677,7 +680,6 @@ class GrayWolfeApp(tk.Tk):
                                        "Paste your S API token to search S.", parent=self)
                 return
             try:
-                from data.s_api import SApiClient
                 s_client = SApiClient(token)
             except GWError as exc:
                 messagebox.showerror(f"Error [GW{exc.code}]", exc.message, parent=self)
@@ -725,7 +727,6 @@ class GrayWolfeApp(tk.Tk):
     def _on_search_complete(self, result) -> None:
         gw_results, s_results, query_terms, s_client = result
         self._set_status("Ready")
-        from display.results_window import ResultsWindow
         ResultsWindow(self, gw_results, s_results, query_terms,
                       self.conn, s_client=s_client)
 
@@ -754,7 +755,6 @@ class GrayWolfeApp(tk.Tk):
                 )
                 return
             try:
-                from data.s_api import SApiClient
                 s_client = SApiClient(token)
             except GWError as exc:
                 messagebox.showerror(f"Error [GW{exc.code}]", exc.message, parent=self)
@@ -776,7 +776,6 @@ class GrayWolfeApp(tk.Tk):
                 messagebox.showwarning("Empty Input", "No data rows found.", parent=self)
                 return
             detected = detect_column_types(rows)
-            from display.schema_detection import SchemaDetectionDialog
             SchemaDetectionDialog(
                 self, rows, detected,
                 on_confirm=lambda types: self._run_default_import(rows, types, raw=raw, delim=delim, s_client=s_client),
@@ -870,7 +869,6 @@ class GrayWolfeApp(tk.Tk):
     ) -> None:
         self._set_status("Ready")
         gw_results, s_results = result
-        from display.results_window import ResultsWindow
         ResultsWindow(self, gw_results, s_results, query_terms, self.conn, s_client=s_client)
 
     # ------------------------------------------------------------------

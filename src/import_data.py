@@ -9,9 +9,10 @@ import logging
 import sqlite3
 
 from config import INTERNAL_DELIM, ROW_DELIM, SELECTOR_TYPES
+from data.database import generate_id, get_current_user, insert_selector, now_iso
+from src.search import parse_raw_input
 from src.targets import collect_target_ids_for_row, create_target, merge_targets
 from src.type_engine import build_selector_clean, detect_selector_type
-from data.database import generate_id, get_current_user, insert_selector, now_iso
 from util.errors import ERR_SELECTOR_DUPLICATE, GWError
 
 logger = logging.getLogger(__name__)
@@ -157,7 +158,6 @@ def run_unrelated_import(
     if username is None:
         username = get_current_user()
 
-    from src.search import parse_raw_input
     values = parse_raw_input(raw_input, delimiter)
 
     inserted = 0

@@ -10,6 +10,7 @@ from typing import Callable, Optional
 
 from data.database import get_current_user, get_target, update_target, update_target_id
 from display import strings
+from display.merge_modal import MergeTargetsDialog
 from util.errors import GWError
 from util.logger import get_logger
 
@@ -223,7 +224,6 @@ class TargetDetailsWindow(tk.Toplevel):
     # ------------------------------------------------------------------
 
     def _open_merge(self) -> None:
-        from display.merge_modal import MergeTargetsDialog
         MergeTargetsDialog(
             self,
             self.conn,
