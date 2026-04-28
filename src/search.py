@@ -10,8 +10,8 @@ import sqlite3
 from typing import Callable
 
 from config import INTERNAL_DELIM
-from core.type_engine import build_selector_clean, detect_selector_type
-from utils.errors import ERR_EMPTY_SEARCH, GWError
+from src.type_engine import build_selector_clean, detect_selector_type
+from util.errors import ERR_EMPTY_SEARCH, GWError
 
 logger = logging.getLogger(__name__)
 

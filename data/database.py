@@ -10,7 +10,7 @@ from datetime import datetime
 from pathlib import Path
 
 from config import ID_STRFTIME
-from utils.errors import (
+from util.errors import (
     ERR_DB_UPDATE,
     ERR_SELECTOR_DUPLICATE,
     ERR_TARGET_NOT_FOUND,

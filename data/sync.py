@@ -6,8 +6,8 @@ from __future__ import annotations
 import sqlite3
 from pathlib import Path
 
-from utils.errors import ERR_SYNC_FAILED, GWError
-from utils.logger import get_logger
+from util.errors import ERR_SYNC_FAILED, GWError
+from util.logger import get_logger
 
 logger = get_logger("gw.sync")
 

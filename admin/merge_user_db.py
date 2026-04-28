@@ -22,7 +22,7 @@ sys.path.insert(0, str(Path(__file__).parent.parent))
 import config
 from data.database import get_connection, initialize_schema
 from data.sync import TABLE_COLUMNS
-from utils.logger import get_logger
+from util.logger import get_logger
 
 logger = get_logger("gw.admin.merge")
 

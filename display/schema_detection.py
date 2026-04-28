@@ -8,8 +8,8 @@ from tkinter import messagebox, ttk
 from typing import Callable
 
 from config import SELECTOR_TYPES
-from ui import strings
-from utils.logger import get_logger
+from display import strings
+from util.logger import get_logger
 
 logger = get_logger(__name__)
 

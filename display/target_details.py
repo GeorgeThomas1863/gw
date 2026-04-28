@@ -9,9 +9,9 @@ from tkinter import messagebox, simpledialog, ttk
 from typing import Callable, Optional
 
 from data.database import get_current_user, get_target, update_target, update_target_id
-from ui import strings
-from utils.errors import GWError
-from utils.logger import get_logger
+from display import strings
+from util.errors import GWError
+from util.logger import get_logger
 
 logger = get_logger(__name__)
 
@@ -223,7 +223,7 @@ class TargetDetailsWindow(tk.Toplevel):
     # ------------------------------------------------------------------
 
     def _open_merge(self) -> None:
-        from ui.merge_targets import MergeTargetsDialog
+        from display.merge_modal import MergeTargetsDialog
         MergeTargetsDialog(
             self,
             self.conn,

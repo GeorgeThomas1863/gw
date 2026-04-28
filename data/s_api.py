@@ -11,7 +11,7 @@ from collections.abc import Callable
 
 import requests
 
-from utils.logger import get_logger
+from util.logger import get_logger
 from config import (
     S_BATCH_SIZE,
     S_LINK_TEMPLATE,
@@ -20,7 +20,7 @@ from config import (
     S_TOKEN_MIN_LEN,
     S_VALIDATE_URLS,
 )
-from utils.errors import (
+from util.errors import (
     ERR_MISSING_S_TOKEN,
     ERR_S_AUTH_FAILED,
     ERR_S_PARSE_FAILED,

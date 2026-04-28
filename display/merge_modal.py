@@ -9,9 +9,9 @@ from typing import Callable, Optional
 import sqlite3
 
 from data.database import get_target
-from core.targets import merge_targets
-from utils.errors import GWError
-from utils.logger import get_logger
+from src.targets import merge_targets
+from util.errors import GWError
+from util.logger import get_logger
 
 logger = get_logger("gw.ui.merge_targets")
 

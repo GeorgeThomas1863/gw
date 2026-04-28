@@ -17,8 +17,8 @@ from data.database import (
     update_target,
     delete_target,
 )
-from core.type_engine import build_selector_clean, detect_selector_type
-from utils.errors import (
+from src.type_engine import build_selector_clean, detect_selector_type
+from util.errors import (
     GWError,
     raise_gw,
     ERR_MERGE_FAILED,

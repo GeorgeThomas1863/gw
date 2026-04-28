@@ -16,7 +16,7 @@ sys.path.insert(0, str(Path(__file__).parent))
 
 import config
 from data.database import get_connection, initialize_schema, get_current_user
-from utils.logger import get_logger
+from util.logger import get_logger
 
 log = get_logger(__name__)
 
@@ -52,7 +52,7 @@ def main() -> None:
         print(f"ERROR: tkinter is required but not available: {exc}", file=sys.stderr)
         sys.exit(1)
 
-    from ui.app import GrayWolfeApp
+    from display.main import GrayWolfeApp
 
     db_path = _resolve_local_db_path()
     log.info("Starting %s v%s — DB: %s", config.APP_NAME, config.APP_VERSION, db_path)
