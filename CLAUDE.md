@@ -15,7 +15,7 @@ GrayWolfe is a Python/Tkinter desktop application for managing selectors (names,
 ## Running
 
 ```bash
-python main.py
+python app.py
 ```
 
 Tests (gitignored locally):
@@ -33,9 +33,9 @@ python admin/merge_user_db.py path/to/user.db [--dry-run]
 ## Architecture
 
 ```
-main.py          Entry point — resolves DB path, initializes schema, launches GrayWolfeApp
+app.py           Entry point — resolves DB path, initializes schema, launches GrayWolfeApp
 config.py        All constants: paths, S API config, selector types, delimiters, ID format
-core/            Business logic
+src/             Business logic
   search.py        Search orchestration (GW + S)
   import_data.py   Import workflows (default and unrelated)
   targets.py       Target lifecycle: create, merge, collect
@@ -44,15 +44,16 @@ data/            Data access
   database.py      SQLite connection, DDL, CRUD helpers, ID generation
   s_api.py         S API client (search, auth, link generation)
   sync.py          pull_from_master() — merges master DB into local DB
-utils/
+util/
   errors.py        GWError exception + error codes (1950–1972)
   logger.py        get_logger() wrapper
-ui/              Tkinter windows
-  app.py           GrayWolfeApp (root window, Search + Add Data tabs)
+display/         Tkinter windows
+  main.py          GrayWolfeApp (root window, Search + Add Data tabs)
   results_window.py  Results display (GW and S tabs, dynamic filters)
   schema_detection.py  Column type confirmation during default import
   target_details.py    Target editor
-  merge_targets.py     Merge two targets
+  merge_modal.py       Merge two targets
+  strings.py           UI string constants
 admin/
   merge_user_db.py  CLI: merges user DB into master, flags conflicts to log
 tests/           pytest test suite (gitignored — not committed)
@@ -61,15 +62,15 @@ old_vba/         Archived VBA source (reference only)
 
 ### Key Workflows
 
-**Search:** `app.py` → `core/search.py:run_search()` → queries local SQLite + `data/s_api.py:SApiClient` → opens `ui/results_window.py`
+**Search:** `app.py` → `src/search.py:run_search()` → queries local SQLite + `data/s_api.py:SApiClient` → opens `display/results_window.py`
 
-**Default Import:** `app.py` → `core/import_data.py:detect_column_types()` → opens `ui/schema_detection.py` for user confirmation → `run_default_import()` → creates selectors + targets, handles bridging merges
+**Default Import:** `app.py` → `src/import_data.py:detect_column_types()` → opens `display/schema_detection.py` for user confirmation → `run_default_import()` → creates selectors + targets, handles bridging merges
 
 **Unrelated Import:** `run_unrelated_import()` — direct type detection, skips relationship/target creation
 
-**Target Edit:** `ui/target_details.py` → `core/targets.py` → local SQLite write
+**Target Edit:** `display/target_details.py` → `src/targets.py` → local SQLite write
 
-**Merge Targets:** `ui/merge_targets.py` → `core/targets.py:merge_targets()` — absorbs one target into another; reassigns all selectors
+**Merge Targets:** `display/merge_modal.py` → `src/targets.py:merge_targets()` — absorbs one target into another; reassigns all selectors
 
 ## Database Schema
 
@@ -88,18 +89,18 @@ Three tables (defined in `data/database.py`):
 10 types in detection priority order (from `config.SELECTOR_TYPES`):
 `email`, `phone`, `ip`, `address`, `linkedin`, `github`, `telegram`, `discord`, `name`, `other`
 
-`type_engine.py` contains `check_<type>()` (bool), `fix_<type>()` (cleaned string), `detect_selector_type()`, and `build_selector_clean()`.
+`src/type_engine.py` contains `check_<type>()` (bool), `fix_<type>()` (cleaned string), `detect_selector_type()`, and `build_selector_clean()`.
 
 ## Error Handling
 
-`utils/errors.py` defines `GWError(code, message)` and `raise_gw(code, msg)`. Codes 1950–1972 mirror the old VBA system. Raise `GWError` for all application-level errors; let SQLite/requests exceptions propagate or wrap them with `raise_gw()`.
+`util/errors.py` defines `GWError(code, message)` and `raise_gw(code, msg)`. Codes 1950–1972 mirror the old VBA system. Raise `GWError` for all application-level errors; let SQLite/requests exceptions propagate or wrap them with `raise_gw()`.
 
 ## Key Technical Details
 
 - **ID generation:** `data/database.py:generate_id()` — `YYMMDDHHMMSS` + 3-digit ms, thread-safe, collision-proof
 - **Delimiters:** `INTERNAL_DELIM = "!!"` (columns within a row), `ROW_DELIM = "+++"` (row separator)
 - **S API rate limiting:** 500-item batches with 10-second pauses (`config.S_BATCH_SIZE`, `S_RATE_LIMIT_SLEEP`)
-- **Threading:** Search and import run in background threads; results returned to main thread via `queue.Queue` polled in `app.py:_poll_queue()`
+- **Threading:** Search and import run in background threads; results returned to main thread via `queue.Queue` polled in `display/main.py:_poll_queue()`
 - **DB connection:** WAL mode, `foreign_keys=ON`, `row_factory=sqlite3.Row`
 
 ## Target Bridging
