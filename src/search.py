@@ -9,7 +9,7 @@ import logging
 import sqlite3
 from typing import Callable
 
-from config import INTERNAL_DELIM
+from models import GWResult, SApiResult, SelectorType
 from src.type_engine import build_selector_clean, detect_selector_type
 from util.errors import ERR_EMPTY_SEARCH, GWError
 
@@ -24,10 +24,9 @@ def parse_raw_input(raw: str, delimiter: str | None = None) -> list[str]:
     """Split raw input into individual selector values.
 
     Delimiter detection order (if delimiter not specified):
-    1. INTERNAL_DELIM ("!!")
-    2. Tab
-    3. Newline
-    4. Comma (only if no other delimiter found)
+    1. Tab
+    2. Newline
+    3. Comma (only if no other delimiter found)
     Strips whitespace from each value; filters empty strings.
     Returns list of clean selector strings.
     """
@@ -37,9 +36,7 @@ def parse_raw_input(raw: str, delimiter: str | None = None) -> list[str]:
     if delimiter is not None:
         parts = raw.split(delimiter)
     else:
-        if INTERNAL_DELIM in raw:
-            parts = raw.split(INTERNAL_DELIM)
-        elif "\t" in raw:
+        if "\t" in raw:
             parts = raw.split("\t")
         elif "\n" in raw:
             parts = raw.split("\n")
@@ -55,7 +52,7 @@ def parse_raw_input(raw: str, delimiter: str | None = None) -> list[str]:
 # search_graywolfe
 # ---------------------------------------------------------------------------
 
-def search_graywolfe(selectors: list[str], conn: sqlite3.Connection) -> list[dict]:
+def search_graywolfe(selectors: list[str], conn: sqlite3.Connection) -> list[GWResult]:
     """Search local DB for each selector.
 
     For each value in selectors:
@@ -66,13 +63,13 @@ def search_graywolfe(selectors: list[str], conn: sqlite3.Connection) -> list[dic
     3. If found: result has in_gray_wolfe=True, all selector + target fields
     4. If not found: result has selector=value, in_gray_wolfe=False, all other fields None
 
-    Returns list of result dicts. One row per (selector, target) pair found.
+    Returns list of GWResult. One row per (selector, target) pair found.
     The original query term is preserved as 'query_value' in each result.
     """
     if not selectors:
         return []
 
-    results: list[dict] = []
+    results: list[GWResult] = []
 
     for value in selectors:
         sel_type = detect_selector_type(value)
@@ -98,40 +95,49 @@ def search_graywolfe(selectors: list[str], conn: sqlite3.Connection) -> list[dic
 
         if rows:
             for row in rows:
-                result = dict(row) if hasattr(row, "keys") else {
-                    "selector_id": row[0],
-                    "selector": row[1],
-                    "selector_clean": row[2],
-                    "selector_type": row[3],
-                    "target_id": row[4],
-                    "nork_id": row[5],
-                    "date_created": row[6],
-                    "created_by": row[7],
-                    "last_updated": row[8],
-                    "last_updated_by": row[9],
-                    "data_source": row[10],
-                    "target_name": row[11],
-                }
-                result["in_gray_wolfe"] = True
-                result["query_value"] = value
-                results.append(result)
+                _raw_type = row["selector_type"]
+                _sel_type: SelectorType | None
+                if _raw_type:
+                    try:
+                        _sel_type = SelectorType(_raw_type)
+                    except ValueError:
+                        _sel_type = None
+                else:
+                    _sel_type = None
+
+                results.append(GWResult(
+                    query_value=value,
+                    selector=row["selector"],
+                    selector_id=row["selector_id"],
+                    selector_clean=row["selector_clean"],
+                    selector_type=_sel_type,
+                    target_id=row["target_id"],
+                    nork_id=row["nork_id"],
+                    date_created=row["date_created"],
+                    created_by=row["created_by"],
+                    last_updated=row["last_updated"],
+                    last_updated_by=row["last_updated_by"],
+                    data_source=row["data_source"],
+                    target_name=row["target_name"],
+                    in_gray_wolfe=True,
+                ))
         else:
-            results.append({
-                "query_value": value,
-                "selector": value,
-                "selector_id": None,
-                "selector_clean": None,
-                "selector_type": None,
-                "target_id": None,
-                "nork_id": None,
-                "date_created": None,
-                "created_by": None,
-                "last_updated": None,
-                "last_updated_by": None,
-                "data_source": None,
-                "target_name": None,
-                "in_gray_wolfe": False,
-            })
+            results.append(GWResult(
+                query_value=value,
+                selector=value,
+                selector_id=None,
+                selector_clean=None,
+                selector_type=None,
+                target_id=None,
+                nork_id=None,
+                date_created=None,
+                created_by=None,
+                last_updated=None,
+                last_updated_by=None,
+                data_source=None,
+                target_name=None,
+                in_gray_wolfe=False,
+            ))
 
     return results
 
@@ -145,11 +151,10 @@ def search_s(
     s_client,
     progress_cb: Callable[[str, int, int], None] | None = None,
     ask_cb: Callable[[str, int], bool] | None = None,
-) -> list[dict]:
+) -> list[SApiResult]:
     """Call SApiClient.search for each selector, aggregate results.
 
     Validates the token against the live S API before issuing any queries.
-    Each result dict has a 'selector' field with the search term.
     Returns flat list. On per-selector error, logs warning and continues.
 
     Args:
@@ -163,7 +168,7 @@ def search_s(
 
     s_client.validate_token()
 
-    results: list[dict] = []
+    results: list[SApiResult] = []
     for i, value in enumerate(selectors):
         def _rate_cb(v=value, idx=i, tot=len(selectors)):
             if progress_cb is not None:
@@ -174,9 +179,7 @@ def search_s(
 
         try:
             batch = s_client.search(value, on_rate_limit=_rate_cb, ask_continue=_ask)
-            for item in batch:
-                item["selector"] = value
-                results.append(item)
+            results.extend(batch)
         except Exception as exc:  # noqa: BLE001
             logger.warning("search_s: error searching %r: %s", value, exc)
 
@@ -196,7 +199,7 @@ def run_search(
     search_s_flag: bool = True,
     progress_cb: Callable[[str, int, int], None] | None = None,
     ask_cb: Callable[[str, int], bool] | None = None,
-) -> tuple[list[dict], list[dict]]:
+) -> tuple[list[GWResult], list[SApiResult]]:
     """Main search entry point.
 
     Returns (gw_results, s_results). Either list may be empty if flag is False
@@ -218,8 +221,8 @@ def run_search(
     if not selectors:
         raise GWError(ERR_EMPTY_SEARCH, "Search input is empty after parsing.")
 
-    gw_results: list[dict] = []
-    s_results: list[dict] = []
+    gw_results: list[GWResult] = []
+    s_results: list[SApiResult] = []
 
     if search_gw:
         gw_results = search_graywolfe(selectors, conn)

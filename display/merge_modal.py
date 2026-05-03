@@ -155,7 +155,7 @@ class MergeTargetsDialog(tk.Toplevel):
                 count_var.set("—")
                 return
 
-            name_var.set(target.get("target_name") or "")
+            name_var.set(target.target_name or "")
             row = self.conn.execute(
                 "SELECT COUNT(*) FROM selectors WHERE target_id = ?", (target_id,)
             ).fetchone()

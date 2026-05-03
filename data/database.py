@@ -9,6 +9,9 @@ import threading
 from datetime import datetime
 from pathlib import Path
 
+import dataclasses
+
+from models import Selector, SelectorType, Target
 from config import ID_STRFTIME
 from util.errors import (
     ERR_DB_UPDATE,
@@ -152,7 +155,7 @@ def now_iso() -> str:
 # Selectors
 # ---------------------------------------------------------------------------
 
-def insert_selector(conn: sqlite3.Connection, selector: dict) -> str:
+def insert_selector(conn: sqlite3.Connection, selector: Selector) -> str:
     """Insert a selector row. Returns selector_id.
 
     Raises GWError(ERR_SELECTOR_DUPLICATE) if selector_clean already exists.
@@ -161,12 +164,12 @@ def insert_selector(conn: sqlite3.Connection, selector: dict) -> str:
     """
     existing = conn.execute(
         "SELECT selector_id FROM selectors WHERE selector_clean = ?",
-        (selector["selector_clean"],),
+        (selector.selector_clean,),
     ).fetchone()
     if existing is not None:
         raise GWError(
             ERR_SELECTOR_DUPLICATE,
-            f"Selector '{selector['selector_clean']}' already exists "
+            f"Selector '{selector.selector_clean}' already exists "
             f"(id={existing['selector_id']})",
         )
 
@@ -186,26 +189,30 @@ def insert_selector(conn: sqlite3.Connection, selector: dict) -> str:
             :data_source
         )
         """,
-        selector,
+        dataclasses.asdict(selector),
     )
     conn.commit()
-    return selector["selector_id"]
+    return selector.selector_id
 
 
-def get_selector(conn: sqlite3.Connection, selector_clean: str) -> dict | None:
-    """Return selector row as dict by selector_clean, or None."""
+def get_selector(conn: sqlite3.Connection, selector_clean: str) -> Selector | None:
+    """Return selector row as Selector by selector_clean, or None."""
     row = conn.execute(
         "SELECT * FROM selectors WHERE selector_clean = ?",
         (selector_clean,),
     ).fetchone()
-    return {k: row[k] for k in row.keys()} if row is not None else None
+    if row is None:
+        return None
+    data = {k: row[k] for k in row.keys() if k != "id"}
+    data["selector_type"] = SelectorType(data["selector_type"])
+    return Selector(**data)
 
 
 # ---------------------------------------------------------------------------
 # Targets
 # ---------------------------------------------------------------------------
 
-def insert_target(conn: sqlite3.Connection, target: dict) -> str:
+def insert_target(conn: sqlite3.Connection, target: Target) -> str:
     """Insert a target row. Returns target_id."""
     conn.execute(
         """
@@ -221,19 +228,21 @@ def insert_target(conn: sqlite3.Connection, target: dict) -> str:
             :data_source
         )
         """,
-        target,
+        dataclasses.asdict(target),
     )
     conn.commit()
-    return target["target_id"]
+    return target.target_id
 
 
-def get_target(conn: sqlite3.Connection, target_id: str) -> dict | None:
-    """Return target row as dict by target_id, or None."""
+def get_target(conn: sqlite3.Connection, target_id: str) -> Target | None:
+    """Return target row as Target by target_id, or None."""
     row = conn.execute(
         "SELECT * FROM targets WHERE target_id = ?",
         (target_id,),
     ).fetchone()
-    return {k: row[k] for k in row.keys()} if row is not None else None
+    if row is None:
+        return None
+    return Target(**{k: row[k] for k in row.keys() if k != "id"})
 
 
 def update_target(

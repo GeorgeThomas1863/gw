@@ -8,7 +8,7 @@ Public API
 ----------
 check_<type>(value)           -> bool
 fix_<type>(value)             -> str   (cleaned form, "" if invalid)
-detect_selector_type(value)   -> str   (type name)
+detect_selector_type(value)   -> SelectorType
 build_selector_clean(value, sel_type) -> str
 normalize_state(value)        -> str   (2-letter abbrev or "FAIL")
 """
@@ -21,6 +21,7 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
 from config import SELECTOR_TYPES
+from models import SelectorType
 
 # ---------------------------------------------------------------------------
 # Compiled regex patterns
@@ -517,16 +518,16 @@ _CHECK_MAP: dict[str, object] = {
 }
 
 
-def detect_selector_type(value: str) -> str:
+def detect_selector_type(value: str) -> SelectorType:
     """Try each type in SELECTOR_TYPES priority order.
-    Returns matching type name, or 'other' if nothing matches."""
+    Returns matching SelectorType, or SelectorType.OTHER if nothing matches."""
     for sel_type in SELECTOR_TYPES:
         if sel_type == "other":
-            return "other"
+            return SelectorType.OTHER
         checker = _CHECK_MAP.get(sel_type)
         if checker and checker(value):  # type: ignore[operator]
-            return sel_type
-    return "other"
+            return SelectorType(sel_type)
+    return SelectorType.OTHER
 
 
 # ---------------------------------------------------------------------------
@@ -547,7 +548,7 @@ _FIX_MAP: dict[str, object] = {
 }
 
 
-def build_selector_clean(value: str, sel_type: str) -> str:
+def build_selector_clean(value: str, sel_type: SelectorType | str) -> str:
     """Call the appropriate fix_{type} function for sel_type.
     Returns cleaned value, or '' if sel_type is unrecognized."""
     fixer = _FIX_MAP.get(sel_type)

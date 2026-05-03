@@ -141,10 +141,10 @@ class TargetDetailsWindow(tk.Toplevel):
             self.destroy()
             return
 
-        self._id_var.set(target.get("target_id", ""))
-        self._name_var.set(target.get("target_name") or "")
-        self._case_var.set(target.get("case_number") or "")
-        self._laptop_var.set(int(target.get("laptop_count") or 0))
+        self._id_var.set(target.target_id)
+        self._name_var.set(target.target_name or "")
+        self._case_var.set(target.case_number or "")
+        self._laptop_var.set(target.laptop_count or 0)
 
         self._load_selectors()
 

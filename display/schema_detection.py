@@ -9,6 +9,7 @@ from typing import Callable
 
 from config import SELECTOR_TYPES
 from display import strings
+from models import ColumnTypeInfo, SelectorType
 from util.logger import get_logger
 
 logger = get_logger(__name__)
@@ -24,7 +25,7 @@ class SchemaDetectionDialog(tk.Toplevel):
         self,
         parent: tk.Widget,
         rows: list[list[str]],
-        detected_types: list[dict],
+        detected_types: list[ColumnTypeInfo],
         on_confirm: Callable[[list[str]], None],
     ) -> None:
         super().__init__(parent)
@@ -85,8 +86,8 @@ class SchemaDetectionDialog(tk.Toplevel):
             if col_idx >= 6:
                 break  # cap at 6 columns for UI clarity
 
-            col_type = info.get("type", "other")
-            confidence = info.get("confidence", 0.0)
+            col_type = info.selector_type.value if info.selector_type else "other"
+            confidence = info.confidence
             pct = f"{confidence * 100:.0f}%"
 
             row_frame = ttk.Frame(type_frame)
@@ -123,7 +124,7 @@ class SchemaDetectionDialog(tk.Toplevel):
         for col_idx, info in enumerate(self.detected_types):
             if col_idx >= len(self._combos):
                 break
-            if info.get("confidence", 0.0) == 0.0 and confirmed_types[col_idx] != "null":
+            if info.confidence == 0.0 and confirmed_types[col_idx] != "null":
                 sample = next(
                     (r[col_idx] for r in self.rows if col_idx < len(r) and r[col_idx].strip()),
                     f"Column {col_idx + 1}"
@@ -137,7 +138,7 @@ class SchemaDetectionDialog(tk.Toplevel):
 
         # typeWrong check: columns where the user overrode a high-confidence detection (>= 50%)
         for col_idx, (cb, info) in enumerate(zip(self._combos, self.detected_types)):
-            if cb.get() != info.get("type", "other") and info.get("confidence", 0.0) >= 0.5:
+            if cb.get() != (info.selector_type.value if info.selector_type else "other") and info.confidence >= 0.5:
                 sample = next(
                     (r[col_idx] for r in self.rows if col_idx < len(r) and r[col_idx].strip()),
                     f"Column {col_idx + 1}"
@@ -146,7 +147,7 @@ class SchemaDetectionDialog(tk.Toplevel):
                     "Type Override", strings.type_wrong_text(sample, cb.get()), parent=self
                 )
                 if not yes:
-                    cb.set(info["type"])  # revert the combo to detected type
+                    cb.set(info.selector_type.value if info.selector_type else "other")  # revert the combo to detected type
                     return               # abort submit; dialog stays open for user to fix
 
         try:

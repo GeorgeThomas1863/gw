@@ -11,6 +11,7 @@ from tkinter import ttk
 from typing import Optional
 
 from display.target_details import TargetDetailsWindow
+from models import GWResult, SApiResult
 from util.logger import get_logger
 
 logger = get_logger(__name__)
@@ -22,8 +23,8 @@ class ResultsWindow(tk.Toplevel):
     def __init__(
         self,
         parent: tk.Widget,
-        gw_results: list[dict],
-        s_results: list[dict],
+        gw_results: list[GWResult],
+        s_results: list[SApiResult],
         query_terms: list[str],
         conn: sqlite3.Connection,
         s_client=None,
@@ -208,7 +209,7 @@ class ResultsWindow(tk.Toplevel):
         self._s_tree.bind("<Double-1>", self._s_double_click)
 
         # Store full row data keyed by tree item id
-        self._s_item_data: dict[str, dict] = {}
+        self._s_item_data: dict[str, SApiResult] = {}
 
     # ------------------------------------------------------------------
     # Populate
@@ -218,7 +219,7 @@ class ResultsWindow(tk.Toplevel):
         # Build s_hit_count lookup from s_results
         s_hits: dict[str, int] = {}
         for r in self.s_results:
-            sel = r.get("selector", "")
+            sel = r.selector
             s_hits[sel] = s_hits.get(sel, 0) + 1
 
         self._gw_all_rows: list[dict] = []
@@ -226,22 +227,22 @@ class ResultsWindow(tk.Toplevel):
         target_names: list[str] = ["All Targets"]
 
         for r in self.gw_results:
-            selector = r.get("selector", r.get("query_value", ""))
+            selector = r.selector
             hits = s_hits.get(selector, 0)
             in_s = hits > 0
             row = {
                 "selector": selector,
-                "type": r.get("selector_type") or "",
-                "target": r.get("target_name") or "",
-                "target_id": r.get("target_id"),
-                "in_gw": "Yes" if r.get("in_gray_wolfe") else "No",
+                "type": r.selector_type.value if r.selector_type else "",
+                "target": r.target_name or "",
+                "target_id": r.target_id,
+                "in_gw": "Yes" if r.in_gray_wolfe else "No",
                 "in_s": in_s,
                 "s_hits": str(hits) if hits else "",
             }
             self._gw_all_rows.append(row)
 
-            tid = r.get("target_id")
-            tname = r.get("target_name")
+            tid = r.target_id
+            tname = r.target_name
             if tid and tid not in targets_seen:
                 targets_seen.add(tid)
                 if tname:
@@ -266,7 +267,7 @@ class ResultsWindow(tk.Toplevel):
     def _populate_s(self) -> None:
         self._s_all_rows = self.s_results[:]
 
-        selectors = sorted({r.get("selector", "") for r in self._s_all_rows} - {""})
+        selectors = sorted({r.selector for r in self._s_all_rows} - {""})
         self._s_selector_combo["values"] = ["All"] + selectors
         self._s_selector_filter_var.set("All")
 
@@ -307,7 +308,7 @@ class ResultsWindow(tk.Toplevel):
                 "", "end",
                 values=(row["selector"], row["type"], row["target"],
                         row["in_gw"], row["s_hits"]),
-                tags=(row.get("target_id") or "",),
+                tags=(row["target_id"] or "",),
             )
 
     # ------------------------------------------------------------------
@@ -326,26 +327,26 @@ class ResultsWindow(tk.Toplevel):
         self._s_item_data.clear()
 
         for row in self._s_all_rows:
-            if fd302_only and row.get("doc_type", "").upper() != "FD302":
+            if fd302_only and row.doc_type.upper() != "FD302":
                 continue
             if last_year:
-                date_str = row.get("created_date", "") or ""
+                date_str = row.created_date or ""
                 if date_str < cutoff:
                     continue
-            if no_attach and "attachment" in (row.get("doc_sub_type") or "").lower():
+            if no_attach and "attachment" in (row.doc_sub_type or "").lower():
                 continue
-            if sel_filter != "All" and row.get("selector", "") != sel_filter:
+            if sel_filter != "All" and row.selector != sel_filter:
                 continue
 
             iid = self._s_tree.insert(
                 "", "end",
                 values=(
-                    row.get("selector", ""),
-                    row.get("doc_type", ""),
-                    row.get("case", ""),
-                    row.get("doc_title", ""),
-                    row.get("author", ""),
-                    (row.get("created_date") or "")[:10],
+                    row.selector,
+                    row.doc_type,
+                    row.case,
+                    row.doc_title,
+                    row.author,
+                    (row.created_date or "")[:10],
                 ),
             )
             self._s_item_data[iid] = row
@@ -371,6 +372,6 @@ class ResultsWindow(tk.Toplevel):
         row = self._s_item_data.get(item)
         if not row:
             return
-        link = row.get("link", "")
+        link = row.link
         if link:
             webbrowser.open(link)

@@ -18,6 +18,7 @@ from data.database import (
     delete_target,
 )
 from src.type_engine import build_selector_clean, detect_selector_type
+from models import Target
 from util.errors import (
     GWError,
     raise_gw,
@@ -79,18 +80,17 @@ def create_target(conn: sqlite3.Connection, username: str | None = None) -> str:
     tid = generate_id()
     ts = now_iso()
 
-    target = {
-        "target_id": tid,
-        "target_name": "[New Target]",
-        "case_number": None,
-        "laptop_count": 0,
-        "date_created": ts,
-        "created_by": username,
-        "last_updated": ts,
-        "last_updated_by": username,
-        "data_source": None,
-    }
-    insert_target(conn, target)
+    insert_target(conn, Target(
+        target_id=tid,
+        target_name="[New Target]",
+        case_number=None,
+        laptop_count=0,
+        date_created=ts,
+        created_by=username,
+        last_updated=ts,
+        last_updated_by=username,
+        data_source=None,
+    ))
     return tid
 
 
@@ -165,19 +165,19 @@ def merge_targets(
     # --- Steps 5-7: Compute metadata updates for keep ---
     fields_to_update: dict = {}
 
-    keep_name = keep["target_name"] or ""
-    absorb_name = absorb["target_name"] or ""
+    keep_name = keep.target_name or ""
+    absorb_name = absorb.target_name or ""
     if not keep_name.strip() and absorb_name.strip():
         fields_to_update["target_name"] = absorb_name
 
-    keep_case = keep["case_number"] or ""
-    absorb_case = absorb["case_number"] or ""
+    keep_case = keep.case_number or ""
+    absorb_case = absorb.case_number or ""
     if not keep_case.strip() and absorb_case.strip():
         fields_to_update["case_number"] = absorb_case
 
-    absorb_laptops = absorb["laptop_count"] or 0
+    absorb_laptops = absorb.laptop_count or 0
     if absorb_laptops > 0:
-        keep_laptops = keep["laptop_count"] or 0
+        keep_laptops = keep.laptop_count or 0
         fields_to_update["laptop_count"] = keep_laptops + absorb_laptops
 
     # --- Step 9: Always refresh last_updated on keep ---

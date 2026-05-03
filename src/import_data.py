@@ -7,9 +7,11 @@ from __future__ import annotations
 
 import logging
 import sqlite3
+from typing import Literal
 
-from config import INTERNAL_DELIM, ROW_DELIM, SELECTOR_TYPES
+from config import SELECTOR_TYPES
 from data.database import generate_id, get_current_user, insert_selector, now_iso
+from models import ColumnTypeInfo, Selector, SelectorType
 from src.search import parse_raw_input
 from src.targets import collect_target_ids_for_row, create_target, merge_targets
 from src.type_engine import build_selector_clean, detect_selector_type
@@ -25,29 +27,17 @@ logger = logging.getLogger(__name__)
 def parse_import_input(raw: str, delimiter: str | None = None) -> list[list[str]]:
     """Parse multi-column import input into list of rows.
 
-    Row delimiter: ROW_DELIM ("+++") or newline
-    Column delimiter: INTERNAL_DELIM ("!!") or tab
+    Row delimiter: newline
+    Column delimiter: tab (or explicit delimiter param)
     Strips and filters empty values.
     Returns list of rows, each row is a list of column values.
     """
     if not raw or not raw.strip():
         return []
 
-    # Split into rows
-    if ROW_DELIM in raw:
-        raw_rows = raw.split(ROW_DELIM)
-    else:
-        raw_rows = raw.split("\n")
+    raw_rows = raw.split("\n")
 
-    # Determine column delimiter
-    if delimiter is not None:
-        col_delim = delimiter
-    elif INTERNAL_DELIM in raw:
-        col_delim = INTERNAL_DELIM
-    elif "\t" in raw:
-        col_delim = "\t"
-    else:
-        col_delim = None
+    col_delim = delimiter if delimiter is not None else ("\t" if "\t" in raw else None)
 
     rows: list[list[str]] = []
     for raw_row in raw_rows:
@@ -68,27 +58,24 @@ def parse_import_input(raw: str, delimiter: str | None = None) -> list[list[str]
 # detect_column_types
 # ---------------------------------------------------------------------------
 
-def detect_column_types(rows: list[list[str]]) -> list[dict]:
+def detect_column_types(rows: list[list[str]]) -> list[ColumnTypeInfo]:
     """For each column position across all rows, count how many values match
     each selector type.
 
-    Returns list of:
-    {"type": best_type, "confidence": float (0.0–1.0), "col_index": int}
-
-    One dict per column. Columns with all-null/empty values get type="other",
-    confidence=0.0.
+    Returns list of ColumnTypeInfo, one per column.
+    Columns with all-null/empty values get selector_type=OTHER, confidence=0.0.
     """
     if not rows:
         return []
 
     col_count = max(len(row) for row in rows)
-    results: list[dict] = []
+    results: list[ColumnTypeInfo] = []
 
     for col_idx in range(col_count):
         values = [row[col_idx] for row in rows if col_idx < len(row) and row[col_idx].strip()]
 
         if not values:
-            results.append({"type": "other", "confidence": 0.0, "col_index": col_idx})
+            results.append(ColumnTypeInfo(col_index=col_idx, selector_type=SelectorType.OTHER, confidence=0.0))
             continue
 
         # Count matches per type
@@ -100,42 +87,39 @@ def detect_column_types(rows: list[list[str]]) -> list[dict]:
         best_type = max(counts, key=lambda t: counts[t])
         confidence = counts[best_type] / len(values) if values else 0.0
 
-        results.append({"type": best_type, "confidence": confidence, "col_index": col_idx})
+        results.append(ColumnTypeInfo(col_index=col_idx, selector_type=SelectorType(best_type), confidence=confidence))
 
     return results
 
 
 # ---------------------------------------------------------------------------
-# _make_selector_dict
+# _make_selector
 # ---------------------------------------------------------------------------
 
-def _make_selector_dict(
+def _make_selector(
     value: str,
-    sel_type: str,
+    sel_type: SelectorType | str,
     username: str,
-) -> dict | None:
-    """Build a selector dict ready for insert_selector.
-
-    Returns None if the cleaned value is empty (unusable).
-    """
+) -> Selector | None:
+    """Build a Selector ready for insert_selector. Returns None if the cleaned value is empty."""
     clean = build_selector_clean(value, sel_type)
     if not clean:
         return None
 
     ts = now_iso()
-    return {
-        "selector_id": generate_id(),
-        "selector": value,
-        "selector_clean": clean,
-        "selector_type": sel_type,
-        "target_id": None,
-        "nork_id": None,
-        "date_created": ts,
-        "created_by": username,
-        "last_updated": ts,
-        "last_updated_by": username,
-        "data_source": None,
-    }
+    return Selector(
+        selector_id=generate_id(),
+        selector=value,
+        selector_clean=clean,
+        selector_type=SelectorType(sel_type) if not isinstance(sel_type, SelectorType) else sel_type,
+        target_id=None,
+        nork_id=None,
+        date_created=ts,
+        created_by=username,
+        last_updated=ts,
+        last_updated_by=username,
+        data_source=None,
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -144,7 +128,7 @@ def _make_selector_dict(
 
 def run_unrelated_import(
     raw_input: str,
-    sel_type: str,
+    sel_type: SelectorType | Literal["auto"],
     conn: sqlite3.Connection,
     username: str | None = None,
     delimiter: str | None = None,
@@ -164,13 +148,13 @@ def run_unrelated_import(
     skipped = 0
     for value in values:
         effective_type = detect_selector_type(value) if sel_type == "auto" else sel_type
-        sel_dict = _make_selector_dict(value, effective_type, username)
-        if sel_dict is None:
+        sel = _make_selector(value, effective_type, username)
+        if sel is None:
             logger.warning("run_unrelated_import: skipping value %r — could not clean", value)
             continue
 
         try:
-            insert_selector(conn, sel_dict)
+            insert_selector(conn, sel)
             inserted += 1
         except GWError as exc:
             if exc.code == ERR_SELECTOR_DUPLICATE:
@@ -188,7 +172,7 @@ def run_unrelated_import(
 
 def run_default_import(
     rows: list[list[str]],
-    confirmed_types: list[str],
+    confirmed_types: list[SelectorType | Literal["null"]],
     conn: sqlite3.Connection,
     username: str | None = None,
 ) -> tuple[int, int]:
@@ -232,16 +216,16 @@ def run_default_import(
                 continue
 
             effective_type = detect_selector_type(value) if col_type == "auto" else col_type
-            sel_dict = _make_selector_dict(value, effective_type, username)
-            if sel_dict is None:
+            sel = _make_selector(value, effective_type, username)
+            if sel is None:
                 logger.warning("run_default_import: skipping %r — empty after clean", value)
                 continue
 
             row_values.append(value)
 
             try:
-                insert_selector(conn, sel_dict)
-                inserted_cleans.append(sel_dict["selector_clean"])
+                insert_selector(conn, sel)
+                inserted_cleans.append(sel.selector_clean)
                 total_inserted += 1
             except GWError as exc:
                 if exc.code == ERR_SELECTOR_DUPLICATE:

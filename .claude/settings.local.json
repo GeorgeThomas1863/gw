@@ -15,7 +15,8 @@
       "Bash(python -m pytest tests/ -x -q)",
       "Bash(python -m pytest tests/ -q)",
       "Bash(python:*)",
-      "Bash(start *)"
+      "Bash(start *)",
+      "Bash(python3 -c \"import config; print\\(config.INTERNAL_DELIM, config.ROW_DELIM\\)\")"
     ]
   }
 }

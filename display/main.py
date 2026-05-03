@@ -27,7 +27,6 @@ logger = get_logger(__name__)
 
 _DELIMITER_OPTIONS = {
     "Auto": None,
-    "!! (double bang)": "!!",
     "Tab": "\t",
     "Newline": "\n",
     "Comma": ",",

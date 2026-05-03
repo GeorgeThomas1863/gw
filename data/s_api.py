@@ -12,6 +12,7 @@ from collections.abc import Callable
 import requests
 
 from util.logger import get_logger
+from models import SApiResult
 from config import (
     S_BATCH_SIZE,
     S_LINK_TEMPLATE,
@@ -96,7 +97,7 @@ class SApiClient:
         query: str,
         on_rate_limit: Callable[[], None] | None = None,
         ask_continue: Callable[[str, int], bool] | None = None,
-    ) -> list[dict]:
+    ) -> list[SApiResult]:
         """Search S API for query. Handles pagination (500/batch).
 
         Args:
@@ -113,7 +114,7 @@ class SApiClient:
             - Returns flat list of parsed result dicts.
             - Raises GWError on error.
         """
-        results: list[dict] = []
+        results: list[SApiResult] = []
         start = 0
 
         first_batch = self._search_batch(query, start)
@@ -175,30 +176,30 @@ class SApiClient:
         except ValueError as exc:
             raise_gw(ERR_S_PARSE_FAILED, f"Failed to parse S API response as JSON: {exc}")
 
-    def _parse_item(self, item: dict, query: str) -> dict:
+    def _parse_item(self, item: dict, query: str) -> SApiResult:
         """Extract fields from one S API result item.
 
-        Returns dict with keys: s_id, selector, doc_id, doc_type, doc_sub_type,
+        Returns SApiResult with fields: s_id, selector, doc_id, doc_type, doc_sub_type,
         case, serial, case_serial_full, office, doc_title, author, created_date, link
         """
         unique_id = item.get("uniqueID", "")
         case = item.get("UCFN", "")
         serial = item.get("itemNumber", "")
-        return {
-            "s_id": unique_id,
-            "selector": query,
-            "doc_id": unique_id,
-            "doc_type": item.get("recordType", ""),
-            "doc_sub_type": item.get("recordSubType", ""),
-            "case": case,
-            "serial": serial,
-            "case_serial_full": f"{case}/{serial}",
-            "office": item.get("caseOfficeCode", ""),
-            "doc_title": item.get("title", ""),
-            "author": item.get("primaryAuthor", ""),
-            "created_date": item.get("createdDate", ""),
-            "link": self.get_link(unique_id),
-        }
+        return SApiResult(
+            s_id=unique_id,
+            selector=query,
+            doc_id=unique_id,
+            doc_type=item.get("recordType", ""),
+            doc_sub_type=item.get("recordSubType", ""),
+            case=case,
+            serial=serial,
+            case_serial_full=f"{case}/{serial}",
+            office=item.get("caseOfficeCode", ""),
+            doc_title=item.get("title", ""),
+            author=item.get("primaryAuthor", ""),
+            created_date=item.get("createdDate", ""),
+            link=self.get_link(unique_id),
+        )
 
     def get_link(self, unique_id: str) -> str:
         """Return the S document URL for a given unique_id."""
